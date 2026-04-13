@@ -157,7 +157,13 @@ export function saveToLeaderboard(entry) {
     if (b.score !== a.score) return b.score - a.score;
     return a.time - b.time;
   });
-  const top = lb.slice(0, 100);
-  localStorage.setItem('voidcount_leaderboard', JSON.stringify(top));
-  return top;
+  // Keep top 10 per difficulty
+  const counts = {};
+  const trimmed = lb.filter(e => {
+    const d = e.difficulty || 'normal';
+    counts[d] = (counts[d] || 0) + 1;
+    return counts[d] <= 10;
+  });
+  localStorage.setItem('voidcount_leaderboard', JSON.stringify(trimmed));
+  return trimmed;
 }

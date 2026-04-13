@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   createGameState,
@@ -9,7 +9,7 @@ import {
   DIFFICULTIES,
   getNextRequiredCounter,
 } from '../lib/gameLogic';
-import { sounds, getMicDefault } from '../lib/sounds';
+import { sounds, getMicDefault, getMusicVolume, isMuted } from '../lib/sounds';
 import CRTOverlay from '../components/game/CRTOverlay';
 import TimerBar from '../components/game/TimerBar';
 import NumberInput from '../components/game/NumberInput';
@@ -39,6 +39,34 @@ export default function Game() {
   const gameStateRef = useRef(gameState);
   gameStateRef.current = gameState;
   const cpuPreppedRef = useRef(false);
+  const bgMusicRef = useRef(null);
+
+  // Background music at 70% of set volume, fades in gently
+  useEffect(() => {
+    if (isMuted()) return;
+    const audio = new Audio('/audio/homescreen_background.mp3');
+    audio.loop = true;
+    const targetVol = getMusicVolume() * 0.5;
+    audio.volume = 0;
+    audio.play().catch(() => {});
+    bgMusicRef.current = audio;
+    // Fade in over 2s
+    const steps = 40;
+    const interval = 2000 / steps;
+    let step = 0;
+    const fade = setInterval(() => {
+      step++;
+      if (!bgMusicRef.current || bgMusicRef.current !== audio) { clearInterval(fade); return; }
+      audio.volume = Math.min(targetVol, (step / steps) * targetVol);
+      if (step >= steps) clearInterval(fade);
+    }, interval);
+    return () => {
+      clearInterval(fade);
+      audio.pause();
+      audio.currentTime = 0;
+      bgMusicRef.current = null;
+    };
+  }, []);
 
   const flashScreen = (color) => {
     setFlashColor(color);

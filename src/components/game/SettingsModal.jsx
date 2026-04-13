@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { X, Trash2, Bug } from 'lucide-react';
+import { X, Trash2, Bug, Volume2, Music } from 'lucide-react';
 import { THEMES, applyTheme } from '../../lib/themes';
 import { getPlayerName, setPlayerName, MAX_NAME_LEN } from '../../lib/playerName';
-import { isMuted, setMuted } from '../../lib/sounds';
+import { getSfxVolume, setSfxVolume, getMusicVolume, setMusicVolume } from '../../lib/sounds';
 
 export function isDebugMode() {
   return localStorage.getItem('voidcount_debug') === 'on';
@@ -15,6 +15,8 @@ export default function SettingsModal({ onClose, currentTheme, onThemeChange }) 
   );
   const [debugMode, setDebugModeState] = useState(isDebugMode());
   const [cleared, setCleared] = useState(false);
+  const [sfxVol, setSfxVol] = useState(getSfxVolume());
+  const [musicVol, setMusicVol] = useState(getMusicVolume());
 
   const handleNameChange = (e) => {
     const val = e.target.value.slice(0, MAX_NAME_LEN);
@@ -46,7 +48,7 @@ export default function SettingsModal({ onClose, currentTheme, onThemeChange }) 
   };
 
   return (
-    <div className="relative glass-panel rounded-2xl p-6 w-full max-w-sm flex flex-col gap-5">
+    <div className="relative glass-panel rounded-2xl p-6 w-full max-w-sm flex flex-col gap-5 max-h-[85vh] overflow-y-auto">
 
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -69,6 +71,33 @@ export default function SettingsModal({ onClose, currentTheme, onThemeChange }) 
             className="w-full glass-panel rounded-lg px-4 py-2 font-orbitron text-sm text-cyan
                        border border-cyan/30 focus:border-cyan focus:outline-none bg-transparent"
           />
+        </div>
+
+        {/* Sound */}
+        <div className="flex flex-col gap-3">
+          <div className="font-orbitron text-xs text-muted-foreground uppercase tracking-widest">Sound</div>
+          <div className="flex items-center gap-3">
+            <Volume2 size={14} className="text-cyan flex-shrink-0" />
+            <span className="font-mono text-xs text-muted-foreground w-8">SFX</span>
+            <input
+              type="range" min="0" max="1" step="0.05"
+              value={sfxVol}
+              onChange={(e) => { const v = parseFloat(e.target.value); setSfxVol(v); setSfxVolume(v); }}
+              className="flex-1 accent-cyan h-1"
+            />
+            <span className="font-mono text-xs text-muted-foreground w-8 text-right">{Math.round(sfxVol * 100)}%</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <Music size={14} className="text-magenta flex-shrink-0" />
+            <span className="font-mono text-xs text-muted-foreground w-8">Music</span>
+            <input
+              type="range" min="0" max="1" step="0.05"
+              value={musicVol}
+              onChange={(e) => { const v = parseFloat(e.target.value); setMusicVol(v); setMusicVolume(v); }}
+              className="flex-1 accent-magenta h-1"
+            />
+            <span className="font-mono text-xs text-muted-foreground w-8 text-right">{Math.round(musicVol * 100)}%</span>
+          </div>
         </div>
 
         {/* Mic Default */}

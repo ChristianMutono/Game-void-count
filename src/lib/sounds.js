@@ -1,5 +1,7 @@
 let _ctx = null;
 let _muted = false;
+let _sfxVolume = parseFloat(localStorage.getItem('voidcount_sfx_volume') ?? '0.85');
+let _musicVolume = parseFloat(localStorage.getItem('voidcount_music_volume') ?? '0.85');
 
 function getCtx() {
   if (!_ctx) _ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -31,7 +33,8 @@ function tone(freq, dur, type = 'square', vol = 0.12, t0 = 0) {
     osc.connect(g); g.connect(c.destination);
     osc.type = type; osc.frequency.value = freq;
     const t = c.currentTime + t0;
-    g.gain.setValueAtTime(vol, t);
+    const v = vol * _sfxVolume;
+    g.gain.setValueAtTime(v, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     osc.start(t); osc.stop(t + dur);
   } catch(e) {}
@@ -48,7 +51,8 @@ function sweep(freqStart, freqEnd, dur, type = 'square', vol = 0.15, t0 = 0) {
     const t = c.currentTime + t0;
     osc.frequency.setValueAtTime(freqStart, t);
     osc.frequency.exponentialRampToValueAtTime(freqEnd, t + dur);
-    g.gain.setValueAtTime(vol, t);
+    const v = vol * _sfxVolume;
+    g.gain.setValueAtTime(v, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     osc.start(t); osc.stop(t + dur);
   } catch(e) {}
@@ -63,7 +67,6 @@ export const sounds = {
     tone(330, 0.1, 'sawtooth', 0.1);
     tone(220, 0.07, 'sawtooth', 0.08, 0.09);
   },
-  // Retro power-down: sweeping tones descending rapidly then fade
   error: () => {
     sweep(440, 220, 0.18, 'square', 0.2);
     sweep(220, 100, 0.22, 'square', 0.18, 0.16);
@@ -88,4 +91,16 @@ export function setMuted(v) { _muted = v; }
 export function isMuted() { return _muted; }
 export function getMicDefault() {
   return localStorage.getItem('voidcount_mic_default') !== 'unmuted';
+}
+
+export function getSfxVolume() { return _sfxVolume; }
+export function setSfxVolume(v) {
+  _sfxVolume = v;
+  localStorage.setItem('voidcount_sfx_volume', String(v));
+}
+
+export function getMusicVolume() { return _musicVolume; }
+export function setMusicVolume(v) {
+  _musicVolume = v;
+  localStorage.setItem('voidcount_music_volume', String(v));
 }

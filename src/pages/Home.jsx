@@ -8,8 +8,8 @@ import SettingsModal from '../components/game/SettingsModal';
 import WheelThemePicker from '../components/game/WheelThemePicker';
 import MenuWheel from '../components/game/MenuWheel';
 import { loadSavedTheme } from '../lib/themes';
-import { getAudioContext } from '../lib/sounds';
-import { Settings } from 'lucide-react';
+import { getAudioContext, getMusicVolume, isMuted } from '../lib/sounds';
+import { Settings, Volume2, VolumeX } from 'lucide-react';
 
 // Electrical fizz/buzz glitch sound
 function playGlitchSound() {
@@ -18,18 +18,15 @@ function playGlitchSound() {
     if (!ctx) return;
     const now = ctx.currentTime;
     const dur = 0.55;
-    // Master gain to control overall glitch volume
     const master = ctx.createGain();
     master.gain.value = 0.25;
     master.connect(ctx.destination);
-    // Heavy white noise layer
     const len = Math.floor(ctx.sampleRate * dur);
     const buf = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = buf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1);
     const noise = ctx.createBufferSource();
     noise.buffer = buf;
-    // Bandpass filter for electrical buzz character
     const bp = ctx.createBiquadFilter();
     bp.type = 'bandpass'; bp.frequency.value = 1200; bp.Q.value = 0.4;
     const ng = ctx.createGain();
@@ -41,7 +38,6 @@ function playGlitchSound() {
     ng.gain.setValueAtTime(0.38, now + 0.22);
     ng.gain.exponentialRampToValueAtTime(0.001, now + dur);
     noise.start(now);
-    // Low-freq square buzz underneath
     const osc = ctx.createOscillator();
     const og = ctx.createGain();
     osc.connect(og); og.connect(master);
@@ -54,7 +50,6 @@ function playGlitchSound() {
     og.gain.setValueAtTime(0.22, now);
     og.gain.exponentialRampToValueAtTime(0.001, now + dur);
     osc.start(now); osc.stop(now + dur);
-    // High crackle burst at start
     const len2 = Math.floor(ctx.sampleRate * 0.06);
     const buf2 = ctx.createBuffer(1, len2, ctx.sampleRate);
     const d2 = buf2.getChannelData(0);
@@ -69,34 +64,53 @@ function playGlitchSound() {
   } catch (_) {}
 }
 
-const DIFFICULTY_TRACKS = {
-  easy: ['/audio/easy_Baby_Shark.mp3', '/audio/easy_Daisy_Bell.mp3'],
-  normal: ['/audio/normal_Sonic_The_Hedgehog_OST_Green_Hill_Zone.mp3', '/audio/normal_Super_Mario_ Bros..mp3'],
-  hard: ['/audio/hard_Jaws_OST.mp3', '/audio/hard_MEGALOVANIA.mp3'],
-  extreme: ['/audio/extreme_Carmina_Burana_O_Fortuna.mp3'],
-};
-const HOVER_VOLUME = 0.15;
+// Dynamic difficulty track discovery from /audio/ directory
+// Files must be named: {difficulty}_{anything}.mp3
+let _difficultyTracks = null;
+async function loadDifficultyTracks() {
+  if (_difficultyTracks) return _difficultyTracks;
+  try {
+    const resp = await fetch('/audio/manifest.json');
+    const files = await resp.json();
+    const tracks = { easy: [], normal: [], hard: [], extreme: [] };
+    for (const file of files) {
+      for (const prefix of Object.keys(tracks)) {
+        if (file.toLowerCase().startsWith(prefix + '_')) {
+          tracks[prefix].push('/audio/' + file);
+          break;
+        }
+      }
+    }
+    _difficultyTracks = tracks;
+    return tracks;
+  } catch (_) {
+    _difficultyTracks = { easy: [], normal: [], hard: [], extreme: [] };
+    return _difficultyTracks;
+  }
+}
+
 let _trackIndices = { easy: 0, normal: 0, hard: 0, extreme: 0 };
 let _currentAudio = null;
 
-function playDifficultyTrack(diffKey) {
+async function playDifficultyTrack(diffKey) {
   stopDifficultyTrack();
-  const tracks = DIFFICULTY_TRACKS[diffKey];
-  if (!tracks || tracks.length === 0) return;
-  const idx = _trackIndices[diffKey] % tracks.length;
-  const audio = new Audio(tracks[idx]);
+  const tracks = await loadDifficultyTracks();
+  const list = tracks[diffKey];
+  if (!list || list.length === 0) return;
+  const idx = _trackIndices[diffKey] % list.length;
+  const audio = new Audio(list[idx]);
+  const targetVol = getMusicVolume();
   audio.volume = 0;
   audio.loop = true;
   audio.play().catch(() => {});
   _currentAudio = audio;
-  // Fade in over 400ms
   const steps = 20;
   const interval = 400 / steps;
   let step = 0;
   const fade = setInterval(() => {
     step++;
     if (!_currentAudio || _currentAudio !== audio) { clearInterval(fade); return; }
-    audio.volume = Math.min(HOVER_VOLUME, (step / steps) * HOVER_VOLUME);
+    audio.volume = Math.min(targetVol, (step / steps) * targetVol);
     if (step >= steps) clearInterval(fade);
   }, interval);
 }
@@ -129,17 +143,59 @@ function fadeOutDifficultyTrack(durationMs = 1500) {
   }, interval);
 }
 
+// Background music
+let _bgMusic = null;
+let _bgFadeInterval = null;
+function startBgMusic() {
+  if (_bgMusic) return;
+  const audio = new Audio('/audio/homescreen_background.mp3');
+  audio.loop = true;
+  audio.volume = getMusicVolume();
+  audio.play().catch(() => {});
+  _bgMusic = audio;
+}
+function stopBgMusic() {
+  if (_bgFadeInterval) { clearInterval(_bgFadeInterval); _bgFadeInterval = null; }
+  if (_bgMusic) {
+    _bgMusic.pause();
+    _bgMusic.currentTime = 0;
+    _bgMusic = null;
+  }
+}
+function updateBgMusicVolume() {
+  if (_bgMusic) _bgMusic.volume = getMusicVolume();
+}
+function fadeBgMusic(targetRatio, durationMs = 400) {
+  if (!_bgMusic) return;
+  if (_bgFadeInterval) { clearInterval(_bgFadeInterval); _bgFadeInterval = null; }
+  const target = getMusicVolume() * targetRatio;
+  const startVol = _bgMusic.volume;
+  const steps = 20;
+  const interval = durationMs / steps;
+  let step = 0;
+  _bgFadeInterval = setInterval(() => {
+    step++;
+    if (!_bgMusic) { clearInterval(_bgFadeInterval); _bgFadeInterval = null; return; }
+    _bgMusic.volume = startVol + (target - startVol) * (step / steps);
+    if (step >= steps) { clearInterval(_bgFadeInterval); _bgFadeInterval = null; }
+  }, interval);
+}
+
 export default function Home() {
   const navigate = useNavigate();
   const [mode, setMode] = useState(null);
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [showFAQ, setShowFAQ] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [currentTheme, setCurrentTheme] = useState(() => loadSavedTheme());
   const [glitching, setGlitching] = useState(false);
-  // Animation states for settings
-  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [musicMuted, setMusicMuted] = useState(() => isMuted());
+
+  // Animation states for overlays
   const [settingsMounted, setSettingsMounted] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [leaderboardMounted, setLeaderboardMounted] = useState(false);
+  const [leaderboardVisible, setLeaderboardVisible] = useState(false);
+  const [faqMounted, setFaqMounted] = useState(false);
+  const [faqVisible, setFaqVisible] = useState(false);
+
   // Animation states for mode transition
   const [modeVisible, setModeVisible] = useState(false);
   const [modeMounted, setModeMounted] = useState(false);
@@ -149,6 +205,13 @@ export default function Home() {
   const glitchTimerRef = useRef(null);
 
   useEffect(() => { loadSavedTheme(); }, []);
+
+  // Background music
+  useEffect(() => {
+    if (!musicMuted) startBgMusic();
+    else stopBgMusic();
+    return () => stopBgMusic();
+  }, [musicMuted]);
 
   // Random glitch every ~49 seconds (±10s variance)
   useEffect(() => {
@@ -165,15 +228,36 @@ export default function Home() {
     return () => clearTimeout(glitchTimerRef.current);
   }, []);
 
-  // Settings open/close with animation
-  const openSettings = () => {
-    setSettingsMounted(true);
-    requestAnimationFrame(() => requestAnimationFrame(() => setSettingsVisible(true)));
+  // Preload track manifest
+  useEffect(() => { loadDifficultyTracks(); }, []);
+
+  const toggleMusicMute = () => {
+    setMusicMuted(prev => {
+      if (!prev) { stopBgMusic(); stopDifficultyTrack(); }
+      else startBgMusic();
+      return !prev;
+    });
   };
+
+  // Overlay open/close helpers
+  const openOverlay = (setMounted, setVisible) => {
+    setMounted(true);
+    requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
+  };
+  const closeOverlay = (setVisible, setMounted) => {
+    setVisible(false);
+    setTimeout(() => setMounted(false), 1440);
+  };
+
+  const openSettings = () => openOverlay(setSettingsMounted, setSettingsVisible);
   const closeSettings = () => {
-    setSettingsVisible(false);
-    setTimeout(() => setSettingsMounted(false), 1440);
+    closeOverlay(setSettingsVisible, setSettingsMounted);
+    updateBgMusicVolume();
   };
+  const openLeaderboard = () => openOverlay(setLeaderboardMounted, setLeaderboardVisible);
+  const closeLeaderboard = () => closeOverlay(setLeaderboardVisible, setLeaderboardMounted);
+  const openFaq = () => openOverlay(setFaqMounted, setFaqVisible);
+  const closeFaq = () => closeOverlay(setFaqVisible, setFaqMounted);
 
   // Mode transition
   const enterMode = (m) => {
@@ -191,58 +275,58 @@ export default function Home() {
   const handleMenuActivate = (itemId) => {
     if (itemId === 'single') enterMode('single');
     else if (itemId === 'local') enterMode('local');
-    else if (itemId === 'ranks') setShowLeaderboard(true);
+    else if (itemId === 'ranks') openLeaderboard();
     else if (itemId === 'settings') openSettings();
-    else if (itemId === 'faq') setShowFAQ(true);
+    else if (itemId === 'faq') openFaq();
   };
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   const startGame = (difficulty) => {
+    stopBgMusic();
     if (!isMobile) {
       stopDifficultyTrack();
       navigate(`/game?mode=${mode}&difficulty=${difficulty}`);
       return;
     }
 
-    // Mobile/tablet: fall-away animation sequence
     setFallingAway(true);
     stopDifficultyTrack();
     playDifficultyTrack(difficulty);
 
     const diffKeys = Object.keys(DIFFICULTIES);
-    const totalButtons = diffKeys.length + 2; // +2 for Back button and "Select Difficulty" label
-    const staggerDelay = 5000 / totalButtons;
+    const totalButtons = diffKeys.length + 2;
+    const staggerDelay = 3500 / totalButtons;
 
-    // Fall elements one by one over ~5s
     for (let i = 0; i < totalButtons; i++) {
       setTimeout(() => {
         setFallenIndices(prev => [...prev, i]);
       }, i * staggerDelay);
     }
 
-    // At 5.5s, start fading the whole screen and the music
     setTimeout(() => {
       setScreenFading(true);
-      fadeOutDifficultyTrack(1500);
-    }, 5500);
+    }, 4000);
 
-    // At 7s, navigate
+    // Navigate at 5.5s, music continues fading after
     setTimeout(() => {
+      fadeOutDifficultyTrack(1500);
       setFallingAway(false);
       setFallenIndices([]);
       setScreenFading(false);
       navigate(`/game?mode=${mode}&difficulty=${difficulty}`);
-    }, 7000);
+    }, 5500);
   };
 
-  // Main content: shrinks/fades when settings open
+  // Any overlay open?
+  const anyOverlayVisible = settingsVisible || leaderboardVisible || faqVisible;
+
   const mainTransition = 'transform 1.44s cubic-bezier(0.4,0,0.2,1), opacity 1.44s cubic-bezier(0.4,0,0.2,1)';
   const mainStyle = {
     transition: mainTransition,
-    transform: settingsVisible ? 'scale(0.88)' : 'scale(1)',
-    opacity: settingsVisible ? 0 : 1,
-    pointerEvents: settingsVisible ? 'none' : 'auto',
+    transform: anyOverlayVisible ? 'scale(0.88)' : 'scale(1)',
+    opacity: anyOverlayVisible ? 0 : 1,
+    pointerEvents: anyOverlayVisible ? 'none' : 'auto',
   };
 
   return (
@@ -257,13 +341,22 @@ export default function Home() {
     >
       <CRTOverlay />
 
-      {/* Background grid — behind everything */}
+      {/* Background grid */}
       <div className="fixed inset-0 opacity-5 pointer-events-none"
            style={{ zIndex: 0,
              backgroundImage: `linear-gradient(rgba(0,240,255,0.3) 1px, transparent 1px),
                                linear-gradient(90deg, rgba(0,240,255,0.3) 1px, transparent 1px)`,
              backgroundSize: '40px 40px',
            }} />
+
+      {/* Music mute — top-left on mobile/tablet, top-right on desktop */}
+      <button
+        onClick={toggleMusicMute}
+        className="fixed top-4 left-4 md:left-auto md:right-4 z-20 w-10 h-10 rounded-full glass-panel border border-border/50
+                   flex items-center justify-center text-muted-foreground hover:text-cyan hover:border-cyan/50 transition-all"
+      >
+        {musicMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+      </button>
 
       {/* Settings cog — tablet & mobile only */}
       <button
@@ -279,15 +372,13 @@ export default function Home() {
         <WheelThemePicker currentTheme={currentTheme} onThemeChange={setCurrentTheme} />
       </div>
 
-      {/* All main content wrapped for settings transition */}
+      {/* All main content */}
       <div className="w-full flex flex-col items-center justify-between flex-1 gap-4" style={mainStyle}>
 
-        {/* Title — top */}
+        {/* Title */}
         <div
           className="relative z-10 text-center flex-shrink-0"
-          style={glitching ? {
-            animation: 'glitch-distort 0.75s ease-in-out forwards',
-          } : {}}
+          style={glitching ? { animation: 'glitch-distort 0.75s ease-in-out forwards' } : {}}
         >
           <h1 className="font-orbitron text-5xl md:text-7xl font-black text-cyan glitch-text tracking-tight leading-none mb-2">
             VOID
@@ -305,7 +396,6 @@ export default function Home() {
           className="relative z-10 w-full max-w-md flex-1 flex flex-col items-center justify-center py-6"
           style={glitching ? { animation: 'glitch-distort 0.75s ease-in-out forwards' } : {}}
         >
-          {/* Menu wheel — always mounted but fades out when mode selected */}
           <div style={{
             width: '100%',
             transition: 'transform 0.4s ease, opacity 0.4s ease',
@@ -317,7 +407,6 @@ export default function Home() {
             <MenuWheel onActivate={handleMenuActivate} />
           </div>
 
-          {/* Difficulty picker — fades in when mode selected */}
           {modeMounted && (
             <div style={{
               width: '100%',
@@ -329,17 +418,13 @@ export default function Home() {
                 <button
                   onClick={exitMode}
                   className="font-mono text-xs text-muted-foreground hover:text-cyan transition-colors mb-2 self-start"
-                  style={fallenIndices.includes(0) ? {
-                    animation: 'fall-away 1.8s cubic-bezier(0.55, 0, 1, 0.45) forwards',
-                  } : {}}
+                  style={fallenIndices.includes(0) ? { animation: 'fall-away 1.8s cubic-bezier(0.55, 0, 1, 0.45) forwards' } : {}}
                 >
                   ← Back
                 </button>
                 <div
                   className="font-orbitron text-sm text-muted-foreground text-center uppercase tracking-widest mb-2"
-                  style={fallenIndices.includes(1) ? {
-                    animation: 'fall-away 1.8s cubic-bezier(0.55, 0, 1, 0.45) forwards',
-                  } : {}}
+                  style={fallenIndices.includes(1) ? { animation: 'fall-away 1.8s cubic-bezier(0.55, 0, 1, 0.45) forwards' } : {}}
                 >
                   Select Difficulty
                 </div>
@@ -347,8 +432,8 @@ export default function Home() {
                   <DifficultyButton
                     key={key} diffKey={key} diff={diff}
                     onClick={() => startGame(key)}
-                    onHoverStart={() => playDifficultyTrack(key)}
-                    onHoverEnd={stopDifficultyTrack}
+                    onHoverStart={() => { fadeBgMusic(0.15, 500); playDifficultyTrack(key); }}
+                    onHoverEnd={() => { stopDifficultyTrack(); fadeBgMusic(1, 800); }}
                     falling={fallenIndices.includes(i + 2)}
                     disabled={fallingAway}
                   />
@@ -358,7 +443,7 @@ export default function Home() {
           )}
         </div>
 
-        {/* How to play — bottom */}
+        {/* How to play */}
         <div
           className="relative z-10 w-full max-w-md flex-shrink-0"
           style={glitching ? { animation: 'glitch-distort 0.75s ease-in-out forwards' } : {}}
@@ -380,43 +465,61 @@ export default function Home() {
         Developed by Christian Mutono
       </div>
 
-      {showLeaderboard && <Leaderboard onClose={() => setShowLeaderboard(false)} />}
-      {showFAQ && <FAQ onClose={() => setShowFAQ(false)} />}
-
-      {/* Settings with grow-from-center animation */}
-      {settingsMounted && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{
-            transition: 'opacity 1.44s cubic-bezier(0.4,0,0.2,1)',
-            opacity: settingsVisible ? 1 : 0,
-          }}
-        >
-          <div
-            className="absolute inset-0 bg-obsidian/90"
-            onClick={closeSettings}
-            style={{
-              transition: 'opacity 1.44s cubic-bezier(0.4,0,0.2,1)',
-              opacity: settingsVisible ? 1 : 0,
-            }}
-          />
-          <div
-            style={{
-              transition: 'transform 1.44s cubic-bezier(0.22,1,0.36,1), opacity 1.44s cubic-bezier(0.4,0,0.2,1)',
-              transform: settingsVisible ? 'scale(1)' : 'scale(0.7)',
-              opacity: settingsVisible ? 1 : 0,
-              position: 'relative', width: '100%', maxWidth: '384px',
-            }}
-          >
-            <SettingsModal
-              onClose={closeSettings}
-              currentTheme={currentTheme}
-              onThemeChange={setCurrentTheme}
-              noWrapper
-            />
-          </div>
-        </div>
+      {/* Leaderboard overlay */}
+      {leaderboardMounted && (
+        <OverlayWrapper visible={leaderboardVisible} onClose={closeLeaderboard}>
+          <Leaderboard onClose={closeLeaderboard} />
+        </OverlayWrapper>
       )}
+
+      {/* FAQ overlay */}
+      {faqMounted && (
+        <OverlayWrapper visible={faqVisible} onClose={closeFaq}>
+          <FAQ onClose={closeFaq} />
+        </OverlayWrapper>
+      )}
+
+      {/* Settings overlay */}
+      {settingsMounted && (
+        <OverlayWrapper visible={settingsVisible} onClose={closeSettings} maxWidth="384px">
+          <SettingsModal
+            onClose={closeSettings}
+            currentTheme={currentTheme}
+            onThemeChange={setCurrentTheme}
+          />
+        </OverlayWrapper>
+      )}
+    </div>
+  );
+}
+
+function OverlayWrapper({ visible, onClose, maxWidth = '448px', children }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{
+        transition: 'opacity 1.44s cubic-bezier(0.4,0,0.2,1)',
+        opacity: visible ? 1 : 0,
+      }}
+    >
+      <div
+        className="absolute inset-0 bg-obsidian/90"
+        onClick={onClose}
+        style={{
+          transition: 'opacity 1.44s cubic-bezier(0.4,0,0.2,1)',
+          opacity: visible ? 1 : 0,
+        }}
+      />
+      <div
+        style={{
+          transition: 'transform 1.44s cubic-bezier(0.22,1,0.36,1), opacity 1.44s cubic-bezier(0.4,0,0.2,1)',
+          transform: visible ? 'scale(1)' : 'scale(0.7)',
+          opacity: visible ? 1 : 0,
+          position: 'relative', width: '100%', maxWidth,
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 }
