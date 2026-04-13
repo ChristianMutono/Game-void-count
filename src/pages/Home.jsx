@@ -206,11 +206,25 @@ export default function Home() {
 
   useEffect(() => { loadSavedTheme(); }, []);
 
-  // Background music
+  // Background music — try immediately, and also on first interaction (browser autoplay policy)
   useEffect(() => {
-    if (!musicMuted) startBgMusic();
-    else stopBgMusic();
-    return () => stopBgMusic();
+    if (musicMuted) { stopBgMusic(); return; }
+    startBgMusic();
+    const unlockBg = () => {
+      if (!musicMuted) startBgMusic();
+      window.removeEventListener('pointerdown', unlockBg);
+      window.removeEventListener('keydown', unlockBg);
+      window.removeEventListener('touchstart', unlockBg);
+    };
+    window.addEventListener('pointerdown', unlockBg);
+    window.addEventListener('keydown', unlockBg);
+    window.addEventListener('touchstart', unlockBg);
+    return () => {
+      stopBgMusic();
+      window.removeEventListener('pointerdown', unlockBg);
+      window.removeEventListener('keydown', unlockBg);
+      window.removeEventListener('touchstart', unlockBg);
+    };
   }, [musicMuted]);
 
   // Random glitch every ~49 seconds (±10s variance)
