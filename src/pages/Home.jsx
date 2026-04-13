@@ -308,9 +308,9 @@ export default function Home() {
       setScreenFading(true);
     }, 4000);
 
-    // Navigate at 5.5s, music continues fading after
+    // Navigate at 5.5s, music fades out over 2.5s after
     setTimeout(() => {
-      fadeOutDifficultyTrack(1500);
+      fadeOutDifficultyTrack(2500);
       setFallingAway(false);
       setFallenIndices([]);
       setScreenFading(false);
