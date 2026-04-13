@@ -137,18 +137,21 @@ export default function NumberInput({ onSubmit, disabled, shakeKey = 0 }) {
     if (!SpeechRec) return;
 
     const rec = new SpeechRec();
-    rec.continuous = false;
+    rec.continuous = true;
     rec.interimResults = false;
     rec.maxAlternatives = 5;
     rec.lang = 'en-US';
 
     rec.onresult = (event) => {
-      const alternatives = Array.from(event.results[0]);
-      for (const alt of alternatives) {
-        const num = parseSpoken(alt.transcript);
-        if (num && num > 0) {
-          onSubmitRef.current(num);
-          break;
+      for (let r = 0; r < event.results.length; r++) {
+        if (!event.results[r].isFinal) continue;
+        const alternatives = Array.from(event.results[r]);
+        for (const alt of alternatives) {
+          const num = parseSpoken(alt.transcript);
+          if (num && num > 0) {
+            onSubmitRef.current(num);
+            return;
+          }
         }
       }
     };

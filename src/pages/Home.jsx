@@ -84,7 +84,6 @@ function playDifficultyTrack(diffKey) {
   const tracks = DIFFICULTY_TRACKS[diffKey];
   if (!tracks || tracks.length === 0) return;
   const idx = _trackIndices[diffKey] % tracks.length;
-  _trackIndices[diffKey]++;
   const audio = new Audio(tracks[idx]);
   audio.volume = 0;
   audio.loop = true;
@@ -178,6 +177,7 @@ export default function Home() {
 
   // Mode transition
   const enterMode = (m) => {
+    for (const key in _trackIndices) _trackIndices[key]++;
     setMode(m);
     setModeMounted(true);
     requestAnimationFrame(() => requestAnimationFrame(() => setModeVisible(true)));
