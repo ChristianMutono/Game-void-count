@@ -110,6 +110,26 @@ function stopDifficultyTrack() {
   }
 }
 
+function fadeOutDifficultyTrack(durationMs = 1500) {
+  if (!_currentAudio) return;
+  const audio = _currentAudio;
+  const startVol = audio.volume;
+  const steps = 30;
+  const interval = durationMs / steps;
+  let step = 0;
+  const fade = setInterval(() => {
+    step++;
+    if (!audio || audio.paused) { clearInterval(fade); return; }
+    audio.volume = Math.max(0, startVol * (1 - step / steps));
+    if (step >= steps) {
+      clearInterval(fade);
+      audio.pause();
+      audio.currentTime = 0;
+      if (_currentAudio === audio) _currentAudio = null;
+    }
+  }, interval);
+}
+
 export default function Home() {
   const navigate = useNavigate();
   const [mode, setMode] = useState(null);
@@ -124,6 +144,9 @@ export default function Home() {
   // Animation states for mode transition
   const [modeVisible, setModeVisible] = useState(false);
   const [modeMounted, setModeMounted] = useState(false);
+  const [fallingAway, setFallingAway] = useState(false);
+  const [fallenIndices, setFallenIndices] = useState([]);
+  const [screenFading, setScreenFading] = useState(false);
   const glitchTimerRef = useRef(null);
 
   useEffect(() => { loadSavedTheme(); }, []);
@@ -173,9 +196,44 @@ export default function Home() {
     else if (itemId === 'faq') setShowFAQ(true);
   };
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
   const startGame = (difficulty) => {
+    if (!isMobile) {
+      stopDifficultyTrack();
+      navigate(`/game?mode=${mode}&difficulty=${difficulty}`);
+      return;
+    }
+
+    // Mobile/tablet: fall-away animation sequence
+    setFallingAway(true);
     stopDifficultyTrack();
-    navigate(`/game?mode=${mode}&difficulty=${difficulty}`);
+    playDifficultyTrack(difficulty);
+
+    const diffKeys = Object.keys(DIFFICULTIES);
+    const totalButtons = diffKeys.length + 2; // +2 for Back button and "Select Difficulty" label
+    const staggerDelay = 5000 / totalButtons;
+
+    // Fall elements one by one over ~5s
+    for (let i = 0; i < totalButtons; i++) {
+      setTimeout(() => {
+        setFallenIndices(prev => [...prev, i]);
+      }, i * staggerDelay);
+    }
+
+    // At 5.5s, start fading the whole screen and the music
+    setTimeout(() => {
+      setScreenFading(true);
+      fadeOutDifficultyTrack(1500);
+    }, 5500);
+
+    // At 7s, navigate
+    setTimeout(() => {
+      setFallingAway(false);
+      setFallenIndices([]);
+      setScreenFading(false);
+      navigate(`/game?mode=${mode}&difficulty=${difficulty}`);
+    }, 7000);
   };
 
   // Main content: shrinks/fades when settings open
@@ -188,7 +246,15 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden flex flex-col items-center justify-between px-4 md:px-8 py-8">
+    <div
+      className="min-h-screen bg-background relative overflow-hidden flex flex-col items-center justify-between px-4 md:px-8 py-8"
+      style={{
+        minHeight: '100dvh',
+        paddingTop: 'max(env(safe-area-inset-top), 0.5rem)',
+        paddingBottom: 'max(env(safe-area-inset-bottom), 0.5rem)',
+        ...(screenFading ? { animation: 'fade-to-game 1.5s ease-in forwards' } : {}),
+      }}
+    >
       <CRTOverlay />
 
       {/* Background grid — behind everything */}
@@ -263,18 +329,28 @@ export default function Home() {
                 <button
                   onClick={exitMode}
                   className="font-mono text-xs text-muted-foreground hover:text-cyan transition-colors mb-2 self-start"
+                  style={fallenIndices.includes(0) ? {
+                    animation: 'fall-away 1.8s cubic-bezier(0.55, 0, 1, 0.45) forwards',
+                  } : {}}
                 >
                   ← Back
                 </button>
-                <div className="font-orbitron text-sm text-muted-foreground text-center uppercase tracking-widest mb-2">
+                <div
+                  className="font-orbitron text-sm text-muted-foreground text-center uppercase tracking-widest mb-2"
+                  style={fallenIndices.includes(1) ? {
+                    animation: 'fall-away 1.8s cubic-bezier(0.55, 0, 1, 0.45) forwards',
+                  } : {}}
+                >
                   Select Difficulty
                 </div>
-                {Object.entries(DIFFICULTIES).map(([key, diff]) => (
+                {Object.entries(DIFFICULTIES).map(([key, diff], i) => (
                   <DifficultyButton
                     key={key} diffKey={key} diff={diff}
                     onClick={() => startGame(key)}
                     onHoverStart={() => playDifficultyTrack(key)}
                     onHoverEnd={stopDifficultyTrack}
+                    falling={fallenIndices.includes(i + 2)}
+                    disabled={fallingAway}
                   />
                 ))}
               </div>
@@ -345,7 +421,7 @@ export default function Home() {
   );
 }
 
-function DifficultyButton({ diffKey, diff, onClick, onHoverStart, onHoverEnd }) {
+function DifficultyButton({ diffKey, diff, onClick, onHoverStart, onHoverEnd, falling, disabled }) {
   const colors = {
     easy:    { border: 'border-cyan/30 hover:border-cyan',      text: 'text-cyan',    glow: 'hover:shadow-[0_0_20px_rgba(0,240,255,0.15)]' },
     normal:  { border: 'border-yellow/30 hover:border-yellow',  text: 'text-yellow',  glow: 'hover:shadow-[0_0_20px_rgba(255,230,0,0.15)]' },
@@ -355,9 +431,10 @@ function DifficultyButton({ diffKey, diff, onClick, onHoverStart, onHoverEnd }) 
   const c = colors[diffKey];
   return (
     <button
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
       onMouseEnter={onHoverStart}
       onMouseLeave={onHoverEnd}
+      style={falling ? { animation: 'fall-away 1.8s cubic-bezier(0.55, 0, 1, 0.45) forwards' } : {}}
       className={`glass-panel rounded-lg px-5 py-3 flex items-center justify-center gap-2 border transition-all duration-300 w-48
                   ${c.border} ${c.glow} active:scale-[0.98]`}
     >

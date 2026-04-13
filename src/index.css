@@ -173,6 +173,17 @@
   80% { transform: translate(1px, -2px); }
 }
 
+@keyframes fall-away {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  15% { transform: translateY(-8px) rotate(-1deg); opacity: 1; }
+  100% { transform: translateY(120vh) rotate(12deg); opacity: 0; }
+}
+
+@keyframes fade-to-game {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 .crt-scanline::after {
   content: '';
   position: fixed;

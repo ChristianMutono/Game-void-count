@@ -146,7 +146,7 @@ export default function Game() {
     (mode === 'single' && gameState.currentTurn === 'controller');
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden flex flex-col">
+    <div className="min-h-screen bg-background relative overflow-hidden flex flex-col" style={{ minHeight: '100dvh', paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <CRTOverlay />
       <MuteButton />
 
@@ -162,7 +162,7 @@ export default function Game() {
       )}
 
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+      <div className="flex items-center justify-between px-4 py-3 pt-4 md:pt-3 border-b border-border/50">
         <button
           onClick={() => navigate('/')}
           className="font-orbitron text-sm text-muted-foreground hover:text-cyan transition-colors"
@@ -215,7 +215,7 @@ export default function Game() {
           </div>
         )}
 
-        <div className="w-full mt-auto pb-4">
+        <div className="w-full mt-auto pb-6 md:pb-4">
           {mode === 'local' && gameState.isStarted && !gameState.gameOver && (
             <div className={`text-center mb-2 font-orbitron text-sm font-bold ${
               gameState.currentTurn === 'counter' ? 'text-cyan' : 'text-magenta'
