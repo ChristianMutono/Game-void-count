@@ -131,48 +131,60 @@ export default function NumberInput({ onSubmit, disabled, shakeKey = 0 }) {
     setMicVolume(0);
   };
 
-  // Speech recognition — single-shot, auto-restarts for continuous feel
+  // Speech recognition — uses Web Speech API (browser-native, no library needed).
+  // Processes interim results too for snappier number recognition.
+  const lastSubmittedRef = useRef({ num: 0, at: 0 });
   const launchRecognition = () => {
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRec) return;
+    if (!SpeechRec) { console.warn('SpeechRecognition not supported in this browser'); return; }
 
     const rec = new SpeechRec();
     rec.continuous = true;
-    rec.interimResults = false;
-    rec.maxAlternatives = 5;
+    rec.interimResults = true;
+    rec.maxAlternatives = 3;
     rec.lang = 'en-US';
 
+    rec.onstart = () => console.log('[voice] recognition started');
+
     rec.onresult = (event) => {
-      for (let r = 0; r < event.results.length; r++) {
-        if (!event.results[r].isFinal) continue;
-        const alternatives = Array.from(event.results[r]);
+      for (let r = event.resultIndex; r < event.results.length; r++) {
+        const result = event.results[r];
+        const alternatives = Array.from(result);
         for (const alt of alternatives) {
-          const num = parseSpoken(alt.transcript);
+          const transcript = alt.transcript.trim();
+          if (!transcript) continue;
+          console.log(`[voice] ${result.isFinal ? 'final' : 'interim'}: "${transcript}"`);
+          const num = parseSpoken(transcript);
           if (num && num > 0) {
+            // Debounce duplicate submissions (same number within 1.5s)
+            const now = Date.now();
+            if (lastSubmittedRef.current.num === num && now - lastSubmittedRef.current.at < 1500) break;
+            lastSubmittedRef.current = { num, at: now };
+            console.log(`[voice] submitting ${num}`);
             onSubmitRef.current(num);
-            return;
+            break;
           }
         }
       }
     };
 
     rec.onend = () => {
-      // Auto-restart if mic still active
+      console.log('[voice] recognition ended');
       if (micActiveRef.current) {
         setTimeout(() => {
           if (micActiveRef.current) launchRecognition();
-        }, 80);
+        }, 100);
       }
     };
 
     rec.onerror = (e) => {
+      console.warn('[voice] error:', e.error);
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         micActiveRef.current = false;
         setMicActive(false);
         stopVolumeMonitor();
         return;
       }
-      // On other errors, rec.onend will fire and restart
     };
 
     try { rec.start(); recognitionRef.current = rec; } catch (e) { console.warn('Rec start:', e); }

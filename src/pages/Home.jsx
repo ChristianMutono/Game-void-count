@@ -123,6 +123,32 @@ function stopDifficultyTrack() {
   }
 }
 
+// Detach the current track from the manager so it keeps playing independently.
+// Returns the audio element so the caller can fade it out on its own schedule.
+function detachDifficultyTrack() {
+  const audio = _currentAudio;
+  _currentAudio = null;
+  return audio;
+}
+
+function fadeOutAudio(audio, durationMs = 2000) {
+  if (!audio) return;
+  const startVol = audio.volume;
+  const steps = 40;
+  const interval = durationMs / steps;
+  let step = 0;
+  const fade = setInterval(() => {
+    step++;
+    if (!audio || audio.paused) { clearInterval(fade); return; }
+    audio.volume = Math.max(0, startVol * (1 - step / steps));
+    if (step >= steps) {
+      clearInterval(fade);
+      audio.pause();
+      audio.currentTime = 0;
+    }
+  }, interval);
+}
+
 function fadeOutDifficultyTrack(durationMs = 1500) {
   if (!_currentAudio) return;
   const audio = _currentAudio;
@@ -206,24 +232,30 @@ export default function Home() {
 
   useEffect(() => { loadSavedTheme(); }, []);
 
-  // Background music — try immediately, and also on first interaction (browser autoplay policy)
+  // Background music — try immediately, and also on any user interaction (browser autoplay policy)
   useEffect(() => {
     if (musicMuted) { stopBgMusic(); return; }
     startBgMusic();
     const unlockBg = () => {
-      if (!musicMuted) startBgMusic();
+      if (!musicMuted) { stopBgMusic(); startBgMusic(); }
       window.removeEventListener('pointerdown', unlockBg);
       window.removeEventListener('keydown', unlockBg);
       window.removeEventListener('touchstart', unlockBg);
+      window.removeEventListener('mousemove', unlockBg);
+      window.removeEventListener('wheel', unlockBg);
     };
     window.addEventListener('pointerdown', unlockBg);
     window.addEventListener('keydown', unlockBg);
     window.addEventListener('touchstart', unlockBg);
+    window.addEventListener('mousemove', unlockBg);
+    window.addEventListener('wheel', unlockBg);
     return () => {
       stopBgMusic();
       window.removeEventListener('pointerdown', unlockBg);
       window.removeEventListener('keydown', unlockBg);
       window.removeEventListener('touchstart', unlockBg);
+      window.removeEventListener('mousemove', unlockBg);
+      window.removeEventListener('wheel', unlockBg);
     };
   }, [musicMuted]);
 
@@ -298,19 +330,29 @@ export default function Home() {
 
   const startGame = (difficulty) => {
     stopBgMusic();
-    if (!isMobile) {
-      stopDifficultyTrack();
-      navigate(`/game?mode=${mode}&difficulty=${difficulty}`);
-      return;
-    }
+
+    // Timings: mobile 8s total (5.5s physical + 2.5s music tail),
+    //          desktop 6s total (4s physical + 2s music tail)
+    const physicalDuration = isMobile ? 5500 : 4000;
+    const musicTail = isMobile ? 2500 : 2000;
+    const fallSpread = isMobile ? 3500 : 2500;
+    const fadeStart = isMobile ? 4000 : 2800;
 
     setFallingAway(true);
-    stopDifficultyTrack();
-    playDifficultyTrack(difficulty);
+
+    // If the hover track for this difficulty is already playing, let it continue.
+    // Otherwise start it fresh.
+    const tracks = _difficultyTracks?.[difficulty];
+    const currentSrc = _currentAudio?.src || '';
+    const matchingTrack = tracks?.some(t => currentSrc.endsWith(encodeURI(t)) || currentSrc.endsWith(t));
+    if (!matchingTrack) {
+      stopDifficultyTrack();
+      playDifficultyTrack(difficulty);
+    }
 
     const diffKeys = Object.keys(DIFFICULTIES);
     const totalButtons = diffKeys.length + 2;
-    const staggerDelay = 3500 / totalButtons;
+    const staggerDelay = fallSpread / totalButtons;
 
     for (let i = 0; i < totalButtons; i++) {
       setTimeout(() => {
@@ -320,16 +362,17 @@ export default function Home() {
 
     setTimeout(() => {
       setScreenFading(true);
-    }, 4000);
+    }, fadeStart);
 
-    // Navigate at 5.5s, music fades out over 2.5s after
+    // Navigate at physicalDuration, music fades out over musicTail
     setTimeout(() => {
-      fadeOutDifficultyTrack(2500);
+      const audio = detachDifficultyTrack();
+      fadeOutAudio(audio, musicTail);
       setFallingAway(false);
       setFallenIndices([]);
       setScreenFading(false);
       navigate(`/game?mode=${mode}&difficulty=${difficulty}`);
-    }, 5500);
+    }, physicalDuration);
   };
 
   // Any overlay open?
@@ -447,7 +490,7 @@ export default function Home() {
                     key={key} diffKey={key} diff={diff}
                     onClick={() => startGame(key)}
                     onHoverStart={() => { fadeBgMusic(0.15, 500); playDifficultyTrack(key); }}
-                    onHoverEnd={() => { stopDifficultyTrack(); fadeBgMusic(1, 800); }}
+                    onHoverEnd={() => { stopDifficultyTrack(); fadeBgMusic(0.5, 800); }}
                     falling={fallenIndices.includes(i + 2)}
                     disabled={fallingAway}
                   />

@@ -16,8 +16,8 @@ import NumberInput from '../components/game/NumberInput';
 import GameHUD from '../components/game/GameHUD';
 import LossScreen from '../components/game/LossScreen';
 import Leaderboard from '../components/game/Leaderboard';
-import MuteButton from '../components/game/MuteButton';
 import { isDebugMode } from '../components/game/SettingsModal';
+import { Volume2, VolumeX } from 'lucide-react';
 
 export default function Game() {
   const navigate = useNavigate();
@@ -35,6 +35,7 @@ export default function Game() {
   const [inputShakeKey, setInputShakeKey] = useState(0);
   const [debugMode] = useState(() => isDebugMode());
   const [micOn, setMicOn] = useState(!getMicDefault());
+  const [musicMuted, setMusicMuted] = useState(false);
 
   const gameStateRef = useRef(gameState);
   gameStateRef.current = gameState;
@@ -43,10 +44,16 @@ export default function Game() {
 
   // Background music at 70% of set volume, fades in gently
   useEffect(() => {
-    if (isMuted()) return;
+    if (isMuted() || musicMuted) {
+      if (bgMusicRef.current) {
+        bgMusicRef.current.pause();
+        bgMusicRef.current = null;
+      }
+      return;
+    }
     const audio = new Audio('/audio/homescreen_background.mp3');
     audio.loop = true;
-    const targetVol = getMusicVolume() * 0.5;
+    const targetVol = getMusicVolume() * 0.6;
     audio.volume = 0;
     audio.play().catch(() => {});
     bgMusicRef.current = audio;
@@ -66,7 +73,7 @@ export default function Game() {
       audio.currentTime = 0;
       bgMusicRef.current = null;
     };
-  }, []);
+  }, [musicMuted]);
 
   const flashScreen = (color) => {
     setFlashColor(color);
@@ -176,7 +183,6 @@ export default function Game() {
   return (
     <div className="min-h-screen bg-background relative overflow-hidden flex flex-col" style={{ minHeight: '100dvh', paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <CRTOverlay />
-      <MuteButton />
 
       {flashColor && (
         <div
@@ -201,8 +207,18 @@ export default function Game() {
         <div className="font-orbitron text-sm font-bold text-foreground/60 uppercase tracking-widest">
           {diff.label}
         </div>
-        <div className="font-mono text-sm text-muted-foreground">
-          {mode === 'single' ? '1P' : '2P'}
+        <div className="flex items-center gap-3">
+          <div className="font-mono text-sm text-muted-foreground">
+            {mode === 'single' ? '1P' : '2P'}
+          </div>
+          <button
+            onClick={() => setMusicMuted(m => !m)}
+            title={musicMuted ? 'Unmute music' : 'Mute music'}
+            className="w-8 h-8 rounded-full glass-panel border border-border/50
+                       flex items-center justify-center text-muted-foreground hover:text-cyan hover:border-cyan/50 transition-all"
+          >
+            {musicMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+          </button>
         </div>
       </div>
 

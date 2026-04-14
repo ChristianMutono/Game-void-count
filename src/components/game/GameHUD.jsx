@@ -1,9 +1,14 @@
-import { getNextRequiredCounter, getScore } from '../../lib/gameLogic';
+import { getNextRequiredCounter, getScore, getLeaderboard } from '../../lib/gameLogic';
 
 export default function GameHUD({ gameState, timerPct, mode, debugMode }) {
   const score = getScore(gameState);
   const nextRequired = getNextRequiredCounter(gameState);
   const isCounterTurn = gameState.currentTurn === 'counter';
+  const topScore = (() => {
+    const entries = getLeaderboard().filter(e => e.difficulty === gameState.difficulty);
+    if (entries.length === 0) return 0;
+    return Math.max(...entries.map(e => e.score || 0));
+  })();
 
   const lastControllerNum = gameState.controllerHistory && gameState.controllerHistory.length > 0
     ? gameState.controllerHistory[gameState.controllerHistory.length - 1]
@@ -38,9 +43,9 @@ export default function GameHUD({ gameState, timerPct, mode, debugMode }) {
             <div className="font-orbitron text-2xl font-bold text-yellow neon-glow-yellow">{nextRequired}</div>
           </div>
         ) : (
-          <div className="glass-panel rounded-lg px-4 py-2 text-right opacity-0 pointer-events-none">
-            <div className="text-xs font-mono">___</div>
-            <div className="font-orbitron text-2xl font-bold">__</div>
+          <div className="glass-panel rounded-lg px-4 py-2 text-right">
+            <div className="text-xs text-muted-foreground font-mono uppercase tracking-widest">Top</div>
+            <div className="font-orbitron text-2xl font-bold text-yellow neon-glow-yellow">{topScore}</div>
           </div>
         )}
       </div>
