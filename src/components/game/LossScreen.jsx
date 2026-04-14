@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { getTaunt } from '../../lib/taunts';
 import { getScore, getElapsedTime, saveToLeaderboard } from '../../lib/gameLogic';
 import { getPlayerName, setPlayerName, MAX_NAME_LEN } from '../../lib/playerName';
+import { isDebugMode } from './SettingsModal';
 import { RotateCcw, Home, Trophy } from 'lucide-react';
 
 export default function LossScreen({ gameState, onRestart, onHome, onShowLeaderboard }) {
@@ -26,15 +27,17 @@ export default function LossScreen({ gameState, onRestart, onHome, onShowLeaderb
 
   const handleExit = (callback) => {
     const saved = setPlayerName(playerName);
-    saveToLeaderboard({
-      score,
-      playerName: saved,
-      time: parseFloat(elapsed),
-      difficulty: gameState.difficulty,
-      mode: gameState.mode,
-      failureType: gameState.failureType,
-      date: new Date().toISOString(),
-    });
+    if (!isDebugMode() || saved === 'Mr Raw') {
+      saveToLeaderboard({
+        score,
+        playerName: saved,
+        time: parseFloat(elapsed),
+        difficulty: gameState.difficulty,
+        mode: gameState.mode,
+        failureType: gameState.failureType,
+        date: new Date().toISOString(),
+      });
+    }
     callback();
   };
 
