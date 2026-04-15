@@ -221,8 +221,8 @@ The 50% controller-time adjustment in `getElapsedTime()` still applies, so the t
 
 `generateCPUMove()` in [src/lib/gameLogic.js](src/lib/gameLogic.js) is a two-stage sampler:
 
-1. **Jump/no-jump gate.** A single `Math.random() < jumpChance` where `jumpChance` is `{easy: 0.30, normal: 0.40, hard: 0.55, extreme: 0.70}`. On tail the CPU plays the sequentially-next unused number (same move the Counter would be forced to play). On head, it enters stage 2.
-2. **Jump-size mixture.** With probability `p_max` (per-difficulty, `{easy: 0, normal: 0.05, hard: 0.06, extreme: 0.05}`) the sampler returns `maxJump` directly — a "signature dunk". Otherwise it falls through to the power-biased base:
+1. **Jump/no-jump gate.** A single `Math.random() < jumpChance` where `jumpChance` is `{easy: 0.40, normal: 0.58, hard: 0.68, extreme: 0.76}`. On tail the CPU plays the sequentially-next unused number (same move the Counter would be forced to play). On head, it enters stage 2.
+2. **Jump-size mixture.** With probability `p_max` (per-difficulty, `{easy: 0.08, normal: 0.05, hard: 0.06, extreme: 0.05}`) the sampler returns `maxJump` directly — a "signature dunk". Otherwise it falls through to the power-biased base:
 
    ```js
    jumpAmount = Math.max(1, Math.round(Math.random() ** 0.585 * (maxJump - 1)) + 1);

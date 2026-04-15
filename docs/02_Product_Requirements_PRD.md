@@ -52,29 +52,29 @@ This document defines the functional and non-functional requirements for Void Co
 
 | Difficulty | Jump Limit | Timer | CPU Response Time (base) | CPU Jump Probability |
 |---|---|---|---|---|
-| Easy | +5 | 7.0s | 0.5 – 3.0s | 30% |
-| Normal | +7 | 6.0s | 0.5 – 3.0s | 40% |
-| Hard | +10 | 5.0s | 0.5 – 3.0s | 55% |
-| Extreme | +13 | 5.0s | 0.5 – 3.0s | 70% |
+| Easy | +5 | 7.0s | 0.5 – 3.0s | 40% |
+| Normal | +7 | 6.0s | 0.5 – 3.0s | 58% |
+| Hard | +10 | 5.0s | 0.5 – 3.0s | 68% |
+| Extreme | +13 | 5.0s | 0.5 – 3.0s | 76% |
 
 The "base" response range is the starting window; it tightens as the score climbs per FR-D-5 below.
 
 - **FR-D-1** The pool of available numbers SHALL extend from 1 to `MAX_SCORE + jump_limit`
 - **FR-D-2** CPU jump amounts SHALL follow a **mixture distribution**:
-  - With probability `p_max` (a small per-difficulty boost — `easy: 0`, `normal: 5%`, `hard: 6%`, `extreme: 5%`), the jump size SHALL be the maximum allowed for that difficulty (a "signature dunk").
+  - With probability `p_max` (a small per-difficulty boost — `easy: 8%`, `normal: 5%`, `hard: 6%`, `extreme: 5%`), the jump size SHALL be the maximum allowed for that difficulty (a "signature dunk").
   - Otherwise, the jump size SHALL be drawn from the base distribution `round(Math.random()^0.585 × (maxJump − 1)) + 1`, clamped to `[1, maxJump]`. The power exponent `0.585 < 1` biases the draw toward larger jumps.
   - Formally: `P(k) = p_max · 𝟙{k = maxJump} + (1 − p_max) · P_base(k)`.
-  - On `normal`, `hard`, and `extreme` this tuning makes the **maximum jump the third most likely** jump size — behind only the two positions one and two steps below it. Easy retains its unboosted curve, so its max-jump remains its 5th-most-likely option.
+  - On `easy` the tuning makes the **maximum jump the 2nd most likely** jump size. On `normal`, `hard`, and `extreme` it sits at the **3rd** rank.
 
 **Conditional jump-size distribution (given a jump is taken):**
 
 | Size | Easy (M=5) | Normal (M=7) | Hard (M=10) | Extreme (M=13) |
 |---|---|---|---|---|
-| +1 | 2.9% | 1.4% | 0.7% | 0.4% |
-| +2 | 15.8% | 7.5% | 3.7% | 2.3% |
-| +3 | 26.1% | 12.4% | 6.1% | 3.8% |
-| +4 | **34.8%** | 16.5% | 8.2% | 5.1% |
-| +5 | 20.4% (max) | **20.3%** | 10.1% | 6.2% |
+| +1 | 2.6% | 1.4% | 0.7% | 0.4% |
+| +2 | 14.6% | 7.5% | 3.7% | 2.3% |
+| +3 | 24.0% | 12.4% | 6.1% | 3.8% |
+| +4 | **32.0%** | 16.5% | 8.2% | 5.1% |
+| +5 | **26.8%** (max) | **20.3%** | 10.1% | 6.2% |
 | +6 | — | **23.8%** | 11.7% | 7.3% |
 | +7 | — | **18.1%** (max) | 13.4% | 8.3% |
 | +8 | — | — | **14.9%** | 9.2% |
@@ -84,14 +84,14 @@ The "base" response range is the starting window; it tightens as the score climb
 | +12 | — | — | — | **12.7%** |
 | +13 | — | — | — | **11.7%** (max) |
 
-Bolded cells indicate the top-3 most likely jump sizes per difficulty. On `normal`/`hard`/`extreme`, the maximum jump sits at the 3rd rank.
+Bolded cells indicate the top-3 most likely jump sizes per difficulty.
 
 **Unconditional per-turn probabilities** (combining the stage-1 jump/no-jump gate with the stage-2 mixture):
 
 | Outcome | Easy | Normal | Hard | Extreme |
 |---|---|---|---|---|
-| Plays sequential (no jump) | 70.0% | 60.0% | 45.0% | 30.0% |
-| Any jump — max jump specifically | 6.1% | 7.3% | 8.1% | 8.2% |
+| Plays sequential (no jump) | 60.0% | 42.0% | 32.0% | 24.0% |
+| Any jump — max jump specifically | 10.7% | 10.5% | 10.0% | 8.9% |
 - **FR-D-3** The timer SHALL pause while the microphone is held for voice input, and SHALL remain paused for a **1.5-second grace period** from the moment the mic is activated before resuming, to cover model inference and transcript submission latency
   - The mic grace SHALL be granted **at most once per counter submission** — i.e., the grace credit refreshes only after a valid counter move is accepted. Pressing the mic a second time before submitting a number grants no additional grace
 - **FR-D-4** The per-turn timer duration SHALL increase by **+0.5 seconds** once the counter's highest submitted number reaches **77**, and by an additional **+0.5 seconds** once it reaches **100**. The +0.5s at 100 accounts for the extra digit to input; the +0.5s at 77 accounts for increased cognitive load from a filling board.

@@ -4,11 +4,13 @@ import { THEMES, applyTheme } from '../../lib/themes';
 import { getPlayerName, setPlayerName, MAX_NAME_LEN } from '../../lib/playerName';
 import { getSfxVolume, setSfxVolume, getMusicVolume, setMusicVolume } from '../../lib/sounds';
 import { loadWhisper, getActiveModelKey } from '../../lib/whisper';
+import { loadDigitRecognizer } from '../../lib/digitSpelling';
 
 const ASR_OPTIONS = [
-  { key: 'whisper-base',  label: 'Whisper Base',  hint: '~74 MB · default · fastest' },
-  { key: 'whisper-small', label: 'Whisper Small', hint: '~244 MB · higher accuracy · slower load + inference' },
-  { key: 'moonshine',     label: 'Moonshine',     hint: '~60 MB · experimental · currently unreliable for digits' },
+  { key: 'whisper-base',   label: 'Whisper Base',        hint: '~74 MB · default · full natural speech' },
+  { key: 'distil-whisper', label: 'Distil-Whisper',      hint: '~166 MB · ~6× faster encoder · same UX as Whisper' },
+  { key: 'digit-spelling', label: 'Digit-Spelling Mode', hint: '~2 MB · spell digits ("one-two-three" for 123) · sub-second' },
+  { key: 'moonshine',      label: 'Moonshine',           hint: '~60 MB · experimental · currently unreliable for digits' },
 ];
 const DEFAULT_ASR_KEY = 'whisper-base';
 
@@ -81,7 +83,8 @@ export default function SettingsModal({ onClose, currentTheme, onThemeChange }) 
     setAsrModel(key);
     localStorage.setItem('voidcount_asr_model', key);
     if (voiceInput) {
-      loadWhisper().catch(() => { /* surfaced inside NumberInput */ });
+      const loader = key === 'digit-spelling' ? loadDigitRecognizer : loadWhisper;
+      loader().catch(() => { /* surfaced inside NumberInput */ });
     }
   };
 

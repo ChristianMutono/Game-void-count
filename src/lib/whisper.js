@@ -26,10 +26,11 @@ async function hasWebGPU() {
 // the keys below (e.g. in devtools) — default is whisper-base.en. See the
 // TAD §7 "Voice tuning" section for full trade-off notes.
 const MODELS = {
-  'whisper-base':  { id: 'Xenova/whisper-base.en',      family: 'whisper' },
-  'whisper-small': { id: 'Xenova/whisper-small.en',     family: 'whisper' },
-  'whisper-tiny':  { id: 'Xenova/whisper-tiny.en',      family: 'whisper' },
-  'moonshine':     { id: 'onnx-community/moonshine-base-ONNX', family: 'moonshine' },
+  'whisper-base':   { id: 'Xenova/whisper-base.en',              family: 'whisper' },
+  'distil-whisper': { id: 'Xenova/distil-small.en',              family: 'whisper' },
+  'whisper-tiny':   { id: 'Xenova/whisper-tiny.en',              family: 'whisper' },
+  'moonshine':      { id: 'onnx-community/moonshine-base-ONNX',  family: 'moonshine' },
+  // 'digit-spelling' is handled outside this registry — see src/lib/digitSpelling.js
 };
 const DEFAULT_MODEL_KEY = 'whisper-base';
 
@@ -85,6 +86,20 @@ async function buildPipeline(active) {
   return pipeline('automatic-speech-recognition', active.id, baseOpts);
 }
 
+async function prewarm(asr) {
+  try {
+    const silent = new Float32Array(16000);
+    await asr(silent, {
+      chunk_length_s: 5,
+      stride_length_s: 0,
+      language: 'english',
+      task: 'transcribe',
+      max_new_tokens: 4,
+      num_beams: 1,
+    });
+  } catch (_) { /* noop */ }
+}
+
 export function loadWhisper() {
   const active = getActiveModel();
   if (pipelinePromise && loadedKey === active.key) return pipelinePromise;
@@ -94,6 +109,11 @@ export function loadWhisper() {
   pipelinePromise = buildPipeline(active).then((asr) => {
     modelReady = true;
     notifyProgress(100);
+    // Background pre-warm: JIT-compiles the WASM kernels and allocates the
+    // decoder KV-cache buffers so the first real transcription isn't paying
+    // that one-time cost inline. Fire-and-forget — user is typically still
+    // on the menu while this completes.
+    setTimeout(() => prewarm(asr), 100);
     return asr;
   }).catch((err) => {
     pipelinePromise = null;
@@ -199,7 +219,14 @@ export async function transcribe(blob) {
 }
 
 export function getActiveModelKey() {
-  return getActiveModel().key;
+  // Read the raw key from storage so callers can distinguish digit-spelling
+  // (which has no entry in MODELS and uses a different backend entirely)
+  // from the whisper family. Falls back to the default if nothing is set.
+  try {
+    const stored = localStorage.getItem('voidcount_asr_model');
+    if (stored) return stored;
+  } catch (_) { /* noop */ }
+  return DEFAULT_MODEL_KEY;
 }
 
 export const AVAILABLE_MODELS = Object.keys(MODELS);

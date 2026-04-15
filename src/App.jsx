@@ -6,7 +6,8 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import Home from './pages/Home';
 import Game from './pages/Game';
-import { loadWhisper } from './lib/whisper';
+import { loadWhisper, getActiveModelKey } from './lib/whisper';
+import { loadDigitRecognizer } from './lib/digitSpelling';
 import { isVoiceInputEnabled } from './components/game/SettingsModal';
 import { installVisibilityMute } from './lib/sounds';
 
@@ -19,7 +20,8 @@ function App() {
     if (!isVoiceInputEnabled()) return;
     const schedule = window.requestIdleCallback || ((cb) => setTimeout(cb, 800));
     const handle = schedule(() => {
-      loadWhisper().catch((err) => console.warn('[whisper] preload failed:', err));
+      const loader = getActiveModelKey() === 'digit-spelling' ? loadDigitRecognizer : loadWhisper;
+      loader().catch((err) => console.warn('[voice] preload failed:', err));
     });
     return () => {
       if (window.cancelIdleCallback && typeof handle === 'number') {

@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Mic, Loader2 } from 'lucide-react';
-import { transcribe, loadWhisper, isModelReady, onLoadProgress } from '../../lib/whisper';
+import { transcribe, loadWhisper, isModelReady, onLoadProgress, getActiveModelKey } from '../../lib/whisper';
+import {
+  startDigitStream,
+  stopDigitStream,
+  loadDigitRecognizer,
+  isDigitModelReady,
+  onDigitLoadProgress,
+} from '../../lib/digitSpelling';
 import { isVoiceInputEnabled } from './SettingsModal';
 
 const TILES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
@@ -59,12 +66,13 @@ function parseSpoken(raw) {
 }
 
 export default function NumberInput({ onSubmit, disabled, shakeKey = 0, onMicActivate }) {
+  const isDigitMode = getActiveModelKey() === 'digit-spelling';
   const [value, setValue] = useState('');
   const [micHeld, setMicHeld] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [modelLoading, setModelLoading] = useState(false);
   const [modelProgress, setModelProgress] = useState(0);
-  const [modelLoaded, setModelLoaded] = useState(isModelReady());
+  const [modelLoaded, setModelLoaded] = useState(isDigitMode ? isDigitModelReady() : isModelReady());
   const [micVolume, setMicVolume] = useState(0);
   const [shaking, setShaking] = useState(false);
 
@@ -89,14 +97,19 @@ export default function NumberInput({ onSubmit, disabled, shakeKey = 0, onMicAct
   }, [shakeKey]);
 
   useEffect(() => {
-    const unsub = onLoadProgress((p) => {
-      setModelProgress(p);
-      if (p >= 100 && isModelReady()) setModelLoaded(true);
-    });
+    const unsub = isDigitMode
+      ? onDigitLoadProgress((p) => {
+          setModelProgress(p);
+          if (p >= 100 && isDigitModelReady()) setModelLoaded(true);
+        })
+      : onLoadProgress((p) => {
+          setModelProgress(p);
+          if (p >= 100 && isModelReady()) setModelLoaded(true);
+        });
     return unsub;
-  }, []);
+  }, [isDigitMode]);
 
-  const inputLocked = disabled || transcribing || modelLoading;
+  const inputLocked = disabled || micHeld || transcribing || modelLoading;
 
   useEffect(() => {
     const handleKey = (e) => {
@@ -141,6 +154,32 @@ export default function NumberInput({ onSubmit, disabled, shakeKey = 0, onMicAct
 
   const startRecording = useCallback(async () => {
     if (disabled || micHeldRef.current || transcribing) return;
+
+    if (isDigitMode) {
+      if (!isDigitModelReady()) {
+        setModelLoading(true);
+        try { await loadDigitRecognizer(); }
+        catch (err) { console.warn('[digit] load failed:', err); setModelLoading(false); return; }
+        setModelLoading(false);
+      }
+      micHeldRef.current = true;
+      setMicHeld(true);
+      if (onMicActivateRef.current) onMicActivateRef.current();
+      try {
+        await startDigitStream((digit) => {
+          setValue((prev) => {
+            const next = (prev + String(digit)).slice(0, 3);
+            return next;
+          });
+        });
+      } catch (err) {
+        console.warn('[digit] stream failed:', err);
+        micHeldRef.current = false;
+        setMicHeld(false);
+      }
+      return;
+    }
+
     if (!isModelReady() && !modelLoading) {
       setModelLoading(true);
       loadWhisper()
@@ -187,10 +226,25 @@ export default function NumberInput({ onSubmit, disabled, shakeKey = 0, onMicAct
       console.warn('Mic access denied:', e);
       stopStreamAndCtx();
     }
-  }, [disabled, transcribing, modelLoading]);
+  }, [disabled, transcribing, modelLoading, isDigitMode]);
 
   const stopRecordingAndTranscribe = useCallback(async () => {
     if (!micHeldRef.current) return;
+
+    if (isDigitMode) {
+      micHeldRef.current = false;
+      setMicHeld(false);
+      await stopDigitStream();
+      // Submit whatever digits we accumulated.
+      setValue((prev) => {
+        if (!prev) return prev;
+        const num = parseInt(prev, 10);
+        if (!isNaN(num) && num > 0 && num <= 250) onSubmitRef.current(num);
+        return '';
+      });
+      return;
+    }
+
     micHeldRef.current = false;
     setMicHeld(false);
 
@@ -221,7 +275,7 @@ export default function NumberInput({ onSubmit, disabled, shakeKey = 0, onMicAct
     } finally {
       setTranscribing(false);
     }
-  }, []);
+  }, [isDigitMode]);
 
   useEffect(() => {
     return () => {
@@ -264,7 +318,7 @@ export default function NumberInput({ onSubmit, disabled, shakeKey = 0, onMicAct
       <div className={`glass-panel rounded-xl px-6 py-3 w-full max-w-xs text-center min-h-[56px]
                        flex items-center justify-center ${shaking ? 'shake' : ''}`}>
         <span className="font-orbitron text-3xl md:text-4xl font-bold text-cyan neon-glow-cyan tracking-wider">
-          {value || <span className="text-muted-foreground/40 text-lg">{hasVoice ? 'TYPE / TAP / HOLD MIC' : 'TYPE / TAP'}</span>}
+          {value || <span className="text-muted-foreground/40 text-lg">{hasVoice ? (isDigitMode ? 'TYPE / TAP / SPELL DIGITS' : 'TYPE / TAP / HOLD MIC') : 'TYPE / TAP'}</span>}
         </span>
       </div>
 
@@ -324,23 +378,25 @@ export default function NumberInput({ onSubmit, disabled, shakeKey = 0, onMicAct
               </div>
             )}
             <button
-              onMouseDown={handleMicDown}
-              onMouseUp={handleMicUp}
+              onMouseDown={micBusy ? undefined : handleMicDown}
+              onMouseUp={micBusy ? undefined : handleMicUp}
               onMouseLeave={micHeld ? handleMicUp : undefined}
-              onTouchStart={handleMicDown}
-              onTouchEnd={handleMicUp}
+              onTouchStart={micBusy ? undefined : handleMicDown}
+              onTouchEnd={micBusy ? undefined : handleMicUp}
               onTouchCancel={handleMicUp}
               onContextMenu={(e) => e.preventDefault()}
-              disabled={disabled || micBusy}
+              disabled={disabled}
               title={modelLoaded ? 'Hold to speak a number' : 'Hold to load voice model and speak'}
-              className={`w-12 h-12 rounded-lg border flex items-center justify-center transition-all disabled:opacity-30 select-none
+              className={`w-12 h-12 rounded-lg border flex items-center justify-center transition-all select-none
+                         ${disabled ? 'opacity-30 pointer-events-none' : ''}
+                         ${micBusy ? 'cursor-wait' : ''}
                          ${micHeld
                            ? 'border-magenta text-magenta bg-magenta/20 scale-95'
                            : micBusy
                              ? 'border-yellow text-yellow bg-yellow/10'
                              : 'bg-muted/50 border-cyan/30 text-cyan hover:bg-cyan/10'}`}
             >
-              {micBusy ? <Loader2 size={20} className="animate-spin" /> : <Mic size={20} />}
+              {micBusy ? <Loader2 size={20} className="animate-spin text-yellow" strokeWidth={2.5} /> : <Mic size={20} />}
             </button>
           </div>
         )}

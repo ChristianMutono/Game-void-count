@@ -108,10 +108,10 @@ export function generateCPUMove(state, difficulty) {
 
   if (nextSequential > poolMax) return null; // pool exhausted
 
-  const jumpChance = { easy: 0.3, normal: 0.4, hard: 0.55, extreme: 0.7 }[difficulty];
-  // Tuned so that on normal/hard/extreme the max jump lands in 3rd place on
-  // the jump-size leaderboard (see PRD §3.3). Easy keeps its natural curve.
-  const maxBoost = { easy: 0, normal: 0.05, hard: 0.06, extreme: 0.05 }[difficulty] || 0;
+  const jumpChance = { easy: 0.4, normal: 0.58, hard: 0.68, extreme: 0.76 }[difficulty];
+  // Tuned so the max jump lands at its target rank on the jump-size
+  // leaderboard: 2nd on easy, 3rd on normal/hard/extreme (see PRD §3.3).
+  const maxBoost = { easy: 0.08, normal: 0.05, hard: 0.06, extreme: 0.05 }[difficulty] || 0;
 
   if (Math.random() < jumpChance && maxJump > 1) {
     let jumpAmount;
