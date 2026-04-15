@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Modal, View, Text, Pressable, TextInput, StyleSheet } from 'react-native';
 import {
   getTaunt, getScore, getElapsedTime, saveToLeaderboard,
@@ -10,6 +10,7 @@ import { COLORS, FONTS } from '../theme';
 export default function LossScreen({ visible, gameState, onRestart, onHome, onShowLeaderboard }) {
   const [taunt, setTaunt] = useState('');
   const [name, setName] = useState(getPlayerName());
+  const savedRef = useRef(false);
 
   useEffect(() => {
     if (visible && gameState) {
@@ -18,6 +19,12 @@ export default function LossScreen({ visible, gameState, onRestart, onHome, onSh
     }
   }, [visible, gameState]);
 
+  // Reset the one-shot save guard whenever a new game-over is surfaced,
+  // so a new round can save exactly once even though the component is reused.
+  useEffect(() => {
+    if (gameState && gameState.gameOver) savedRef.current = false;
+  }, [gameState?.gameOver, gameState?.endTime]);
+
   if (!gameState) return null;
   const score = getScore(gameState);
   const elapsed = getElapsedTime(gameState).toFixed(1);
@@ -25,16 +32,19 @@ export default function LossScreen({ visible, gameState, onRestart, onHome, onSh
 
   const handleExit = (cb) => {
     const saved = setPlayerName(name);
-    if (!isDebugMode() || MR_RAW_NAMES.includes(saved)) {
-      saveToLeaderboard({
-        score,
-        playerName: saved,
-        time: parseFloat(elapsed),
-        difficulty: gameState.difficulty,
-        mode: gameState.mode,
-        failureType: gameState.failureType,
-        date: new Date().toISOString(),
-      });
+    if (!savedRef.current) {
+      savedRef.current = true;
+      if (!isDebugMode() || MR_RAW_NAMES.includes(saved)) {
+        saveToLeaderboard({
+          score,
+          playerName: saved,
+          time: parseFloat(elapsed),
+          difficulty: gameState.difficulty,
+          mode: gameState.mode,
+          failureType: gameState.failureType,
+          date: new Date().toISOString(),
+        });
+      }
     }
     cb && cb();
   };

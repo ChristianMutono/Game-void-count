@@ -158,7 +158,7 @@ The minimum floor drops from 0.5s to 0.25s at the deepest tiers of `easy`/`hard`
   - Band 2 (31–60): backhanded compliments
   - Band 3 (61–100): dismissive acknowledgement
   - Band 4 (100+): sarcastic awe
-- **FR-L-4** The player SHALL be able to: Retry, view Rankings, or Exit
+- **FR-L-4** The player SHALL be able to: Retry, view Rankings, or Exit. The Rankings action SHALL leave the round entirely — it dismisses the loss screen and shows the Rankings view as a full-screen overlay; closing Rankings returns the player to the Home screen (not back to the loss screen)
 - **FR-L-5** Player name SHALL be editable on the loss screen (max 10 characters) and saved with the leaderboard entry
 - **FR-L-6** The counter's score SHALL be capped at **MAX_SCORE (200)**; any submission that would carry `highestCounterNumber` above 200 is clamped to 200 for scoring and leaderboard purposes
 - **FR-L-7** Upon reaching MAX_SCORE, a **victory taunt** SHALL be selected instead of a loss taunt, from a matrix of **4 difficulties × 7 variants = 28 victory taunts**

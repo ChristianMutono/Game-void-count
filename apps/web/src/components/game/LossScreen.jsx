@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getTaunt, getScore, getElapsedTime, saveToLeaderboard, getPlayerName, setPlayerName, MAX_NAME_LEN } from '@void-count/core';
 import { isDebugMode } from './SettingsModal';
 import { RotateCcw, Home, Trophy } from 'lucide-react';
@@ -8,6 +8,7 @@ export default function LossScreen({ gameState, onRestart, onHome, onShowLeaderb
   const [glitching, setGlitching] = useState(true);
   const [taunt] = useState(() => getTaunt(gameState.failureType, getScore(gameState), gameState.difficulty));
   const [playerName, setPlayerNameState] = useState(getPlayerName());
+  const savedRef = useRef(false);
 
   const score = getScore(gameState);
   const elapsed = getElapsedTime(gameState).toFixed(1);
@@ -27,16 +28,19 @@ export default function LossScreen({ gameState, onRestart, onHome, onShowLeaderb
 
   const handleExit = (callback) => {
     const saved = setPlayerName(playerName);
-    if (!isDebugMode() || MR_RAW_NAMES.includes(saved)) {
-      saveToLeaderboard({
-        score,
-        playerName: saved,
-        time: parseFloat(elapsed),
-        difficulty: gameState.difficulty,
-        mode: gameState.mode,
-        failureType: gameState.failureType,
-        date: new Date().toISOString(),
-      });
+    if (!savedRef.current) {
+      savedRef.current = true;
+      if (!isDebugMode() || MR_RAW_NAMES.includes(saved)) {
+        saveToLeaderboard({
+          score,
+          playerName: saved,
+          time: parseFloat(elapsed),
+          difficulty: gameState.difficulty,
+          mode: gameState.mode,
+          failureType: gameState.failureType,
+          date: new Date().toISOString(),
+        });
+      }
     }
     callback();
   };

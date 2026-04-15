@@ -235,7 +235,10 @@ export default function GameScreen({ route, navigation }) {
         onHome={() => navigation.navigate('Home')}
         onShowLeaderboard={() => setShowLeaderboard(true)}
       />
-      <Leaderboard visible={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
+      <Leaderboard
+        visible={showLeaderboard}
+        onClose={() => { setShowLeaderboard(false); navigation.navigate('Home'); }}
+      />
     </SafeAreaView>
   );
 }

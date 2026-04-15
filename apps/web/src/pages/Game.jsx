@@ -368,7 +368,7 @@ export default function Game() {
         </div>
       </div>
 
-      {gameState.gameOver && (
+      {gameState.gameOver && !showLeaderboard && (
         <LossScreen
           gameState={gameState}
           onRestart={handleRestart}
@@ -378,7 +378,9 @@ export default function Game() {
       )}
 
       {showLeaderboard && (
-        <Leaderboard onClose={() => setShowLeaderboard(false)} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95">
+          <Leaderboard onClose={() => { setShowLeaderboard(false); navigate('/'); }} />
+        </div>
       )}
     </div>
   );
