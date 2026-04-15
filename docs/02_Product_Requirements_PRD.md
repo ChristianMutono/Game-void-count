@@ -54,8 +54,8 @@ This document defines the functional and non-functional requirements for Void Co
 |---|---|---|---|---|
 | Easy | +5 | 7.0s | 0.5 – 3.0s | 30% |
 | Normal | +7 | 6.0s | 0.5 – 2.5s | 40% |
-| Hard | +9 | 5.0s | 0.5 – 2.0s | 55% |
-| Extreme | +12 | 5.0s | 0.5 – 2.0s | 70% |
+| Hard | +10 | 5.0s | 0.5 – 2.0s | 55% |
+| Extreme | +13 | 5.0s | 0.5 – 2.0s | 70% |
 
 - **FR-D-1** The pool of available numbers SHALL extend from 1 to `MAX_SCORE + jump_limit`
 - **FR-D-2** CPU jump amounts SHALL follow a `pow(random, 0.585)` distribution — ~33% low-jump, ~67% mid-to-high-jump

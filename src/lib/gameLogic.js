@@ -1,8 +1,8 @@
 export const DIFFICULTIES = {
   easy:    { label: 'EASY',    timer: 7, jump: 5,  color: 'cyan' },
   normal:  { label: 'NORMAL',  timer: 6, jump: 7,  color: 'yellow' },
-  hard:    { label: 'HARD',    timer: 5, jump: 9,  color: 'magenta' },
-  extreme: { label: 'EXTREME', timer: 5, jump: 12, color: 'magenta' },
+  hard:    { label: 'HARD',    timer: 5, jump: 10, color: 'magenta' },
+  extreme: { label: 'EXTREME', timer: 5, jump: 13, color: 'magenta' },
 };
 
 export const MAX_SCORE = 200;
