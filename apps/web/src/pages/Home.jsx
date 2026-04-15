@@ -219,6 +219,9 @@ export default function Home() {
   const [currentTheme, setCurrentTheme] = useState(() => loadSavedTheme());
   const [glitching, setGlitching] = useState(false);
   const [musicMuted, setMusicMuted] = useState(() => isMuted());
+  const [splashing, setSplashing] = useState(true);
+  const [splashFading, setSplashFading] = useState(false);
+  const [splashArmed, setSplashArmed] = useState(false);
 
   // Animation states for overlays
   const [settingsMounted, setSettingsMounted] = useState(false);
@@ -237,6 +240,20 @@ export default function Home() {
   const glitchTimerRef = useRef(null);
 
   useEffect(() => { loadSavedTheme(); }, []);
+
+  // Tap-to-continue splash. The tap itself is the user gesture that
+  // unlocks browser audio, so bg music starts cleanly when the menu
+  // appears instead of stop/restarting mid-interaction.
+  useEffect(() => {
+    const armAt = setTimeout(() => setSplashArmed(true), 900);
+    return () => clearTimeout(armAt);
+  }, []);
+
+  const dismissSplash = () => {
+    if (!splashArmed || splashFading) return;
+    setSplashFading(true);
+    setTimeout(() => setSplashing(false), 500);
+  };
 
   // Background music — try immediately, and also on any user interaction (browser autoplay policy)
   useEffect(() => {
@@ -540,6 +557,43 @@ export default function Home() {
         <OverlayWrapper visible={faqVisible} onClose={closeFaq}>
           <FAQ onClose={closeFaq} />
         </OverlayWrapper>
+      )}
+
+      {/* Tap-to-continue splash — the tap unlocks browser audio */}
+      {splashing && (
+        <div
+          onClick={dismissSplash}
+          onTouchStart={dismissSplash}
+          onKeyDown={dismissSplash}
+          tabIndex={0}
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-background cursor-pointer select-none"
+          style={{
+            transition: 'opacity 500ms ease-out',
+            opacity: splashFading ? 0 : 1,
+          }}
+        >
+          <div className="text-center">
+            <h1 className="font-orbitron text-6xl md:text-8xl font-black text-cyan glitch-text tracking-tight leading-none mb-2">
+              VOID
+            </h1>
+            <h1 className="font-orbitron text-6xl md:text-8xl font-black text-magenta glitch-text tracking-tight leading-none mb-4">
+              COUNT
+            </h1>
+            <div className="font-mono text-xs text-muted-foreground tracking-[0.3em] uppercase mb-10">
+              count or be consumed
+            </div>
+            <div
+              className="font-orbitron text-xs md:text-sm text-yellow tracking-[0.4em] uppercase"
+              style={{
+                animation: 'neon-pulse 1.4s ease-in-out infinite',
+                opacity: splashArmed ? 1 : 0,
+                transition: 'opacity 400ms ease-in',
+              }}
+            >
+              ▸ Tap to Enter the Void ◂
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Settings overlay */}

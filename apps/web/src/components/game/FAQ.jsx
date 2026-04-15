@@ -35,24 +35,24 @@ const FAQS = [
     a: "When the Controller is slow, it's planning. When it's fast, it already planned. Neither is good news for you. Treat both with suspicion. The Controller is not your friend."
   },
   {
-    q: "How does voice input work? Can I just shout numbers at my screen?",
-    a: "Yes, screaming is optional but supported. Hold the mic button, say the number, let go. The game transcribes it on your own device — no cloud, no Google, no microphone-adjacent marketing algorithm listening to your breakfast. Release the button and the number gets submitted. If nothing happens, you probably mumbled. The void doesn't do mumbles."
+    q: "There's a mic button. Should I actually use it?",
+    a: "Technically, yes. Spiritually, no. The web version's voice input is a 40MB neural network (Whisper) shoved into your browser tab with WASM and optimism. It works. It's also slow, occasionally confused, and nowhere near the real thing. If you want voice input that feels like voice input, find the developer (Christian Mutono, credited in the corner, staring back at you) and ask politely about the mobile app. That's where voice lives its best life. This browser tab is where it survives."
   },
   {
-    q: "Why is there a little 'LOADING' bar the first time I try voice input?",
-    a: "Because you're downloading an actual neural network to your browser. About 40MB of open-source speech recognition (Whisper) arrives quietly in the background the moment you open the page, and it's cached forever after. First visit: slight wait. Every visit after: instant. The void rewards patience. Occasionally."
+    q: "Why is there a 'LOADING' bar the first time I try voice input?",
+    a: "Because you are, against all good judgement, downloading a speech recognition model directly into your browser. About 40MB of it. One time. Cached forever after. This is the price the web pays for privacy-respecting on-device voice — the mobile app skips this entire indignity by borrowing the OS's native recogniser, which is both faster and less of a science project. Just another reason to ask the developer for a mobile build."
   },
   {
     q: "The timer stops when I hold the mic. Is that a bug?",
-    a: "No. That's mercy, and mercy is rare here. Holding the mic pauses the timer and gives you a 1.5-second grace window once you let go, so transcription doesn't cost you the round. Don't abuse it — the void is watching and the void has a very low tolerance for stalling."
+    a: "No. That's mercy, and mercy is rare here. Holding the mic pauses the timer and gives you a 1.5-second grace window once you let go, so transcription doesn't cost you the round. Consider it an apology for how long Whisper takes to make up its mind. On mobile the grace is still there, but the recogniser's faster, so you need it less."
   },
   {
     q: "Can I just say 'one hundred and twelve' or do I have to say '112' like a robot?",
-    a: "Talk however you talk. 'One twelve', 'one hundred twelve', 'one hundred and twelve', or just '112' all resolve to the same number. The parser handles tens + units compounds ('twenty-seven', 'forty-three') and the whole 'hundred' family. What it won't handle is you trying to be clever with 'roughly a hundredish'. Just say the number."
+    a: "Either — assuming Whisper heard you correctly, which is a bigger assumption than it should be. 'One twelve', 'one hundred twelve', '112' all parse to the same number when the transcription cooperates. When it doesn't, you'll watch Whisper invent a number you didn't say and hand it to the void. The mobile version's native recogniser trips on this noticeably less often. You're welcome to draw conclusions."
   },
   {
     q: "Does my voice get sent anywhere?",
-    a: "No. Audio never leaves your device. The transcription model runs locally in your browser — the only thing that ever hits the network is the one-time model download itself. After that, you could unplug your internet and voice input would still work. Which is the most paranoid-friendly feature this game will ever have."
+    a: "No. Audio never leaves your device. Whisper runs locally inside the browser — the only network traffic is the one-time model download. After that, unplug your router and voice input would still work (slowly, as always). This is the one thing the web version does exactly as well as the mobile one: the void watches you, nothing else does."
   },
 ];
 

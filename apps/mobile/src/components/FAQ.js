@@ -21,7 +21,7 @@ const FAQS = [
   },
   {
     q: "How does voice input work on mobile?",
-    a: "Tap or hold the mic (depending on mode in Settings). The phone's native speech recogniser transcribes on-device — no audio leaves the device. Talk however you talk: \"one twelve\", \"one hundred and twelve\", or just \"112\" all resolve to 112.",
+    a: "Tap or hold the mic (depending on mode in Settings). The phone's native speech recogniser transcribes on-device — no audio leaves the device. Talk however you talk: \"one twelve\", \"one hundred and twelve\", or just \"112\" all resolve to 112. Fast, local, and not pretending to be anything other than what it is. (If you came here from the web version: yes, this is how it was always supposed to feel. The browser tab was a rehearsal.)",
   },
   {
     q: "What's the difference between push-to-talk and continuous?",

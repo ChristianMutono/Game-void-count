@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, ScrollView, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { DIFFICULTIES } from '@void-count/core';
 import CRTOverlay from '../components/CRTOverlay';
@@ -18,6 +18,16 @@ export default function HomeScreen({ navigation }) {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showFaq, setShowFaq] = useState(false);
   const [glitch, setGlitch] = useState(false);
+  const [splashing, setSplashing] = useState(true);
+  const splashOpacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const fadeAt = setTimeout(() => {
+      Animated.timing(splashOpacity, { toValue: 0, duration: 500, useNativeDriver: true }).start();
+    }, 1600);
+    const doneAt = setTimeout(() => setSplashing(false), 2100);
+    return () => { clearTimeout(fadeAt); clearTimeout(doneAt); };
+  }, [splashOpacity]);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,6 +99,21 @@ export default function HomeScreen({ navigation }) {
       <Settings visible={showSettings} onClose={() => setShowSettings(false)} />
       <Leaderboard visible={showLeaderboard} onClose={() => setShowLeaderboard(false)} />
       <FAQ visible={showFaq} onClose={() => setShowFaq(false)} />
+
+      {splashing && (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.splash, { backgroundColor: t.bg, opacity: splashOpacity }]}
+        >
+          <GlitchText style={[styles.splashTitle, { color: t.cyan }]} color={t.cyan} offsetColor1={t.magenta} offsetColor2={t.cyan}>
+            VOID
+          </GlitchText>
+          <GlitchText style={[styles.splashTitle, { color: t.magenta, marginTop: -12 }]} color={t.magenta} offsetColor1={t.cyan} offsetColor2={t.magenta}>
+            COUNT
+          </GlitchText>
+          <Text style={[styles.splashSub, { color: t.mute }]}>COUNT OR BE CONSUMED</Text>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
@@ -107,4 +132,7 @@ const styles = StyleSheet.create({
   bottom: { flexDirection: 'row', gap: 8, marginTop: 'auto', marginBottom: 16 },
   iconBtn: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1 },
   iconText: { fontSize: 11, fontWeight: '800', letterSpacing: 2 },
+  splash: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', zIndex: 100 },
+  splashTitle: { fontSize: 72, fontWeight: '900', letterSpacing: 5 },
+  splashSub: { fontSize: 11, marginTop: 24, letterSpacing: 4, fontFamily: FONTS.mono },
 });
