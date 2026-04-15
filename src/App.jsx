@@ -8,8 +8,13 @@ import Home from './pages/Home';
 import Game from './pages/Game';
 import { loadWhisper } from './lib/whisper';
 import { isVoiceInputEnabled } from './components/game/SettingsModal';
+import { installVisibilityMute } from './lib/sounds';
 
 function App() {
+  useEffect(() => {
+    installVisibilityMute();
+  }, []);
+
   useEffect(() => {
     if (!isVoiceInputEnabled()) return;
     const schedule = window.requestIdleCallback || ((cb) => setTimeout(cb, 800));

@@ -8,7 +8,7 @@ import SettingsModal from '../components/game/SettingsModal';
 import WheelThemePicker from '../components/game/WheelThemePicker';
 import MenuWheel from '../components/game/MenuWheel';
 import { loadSavedTheme } from '../lib/themes';
-import { getAudioContext, getMusicVolume, isMuted } from '../lib/sounds';
+import { getAudioContext, getMusicVolume, isMuted, registerAudio, unregisterAudio } from '../lib/sounds';
 import { Settings, Volume2, VolumeX } from 'lucide-react';
 
 // Electrical fizz/buzz glitch sound
@@ -103,6 +103,7 @@ async function playDifficultyTrack(diffKey) {
   audio.volume = 0;
   audio.loop = true;
   audio.play().catch(() => {});
+  registerAudio(audio);
   _currentAudio = audio;
   const steps = 20;
   const interval = 400 / steps;
@@ -119,6 +120,7 @@ function stopDifficultyTrack() {
   if (_currentAudio) {
     _currentAudio.pause();
     _currentAudio.currentTime = 0;
+    unregisterAudio(_currentAudio);
     _currentAudio = null;
   }
 }
@@ -139,12 +141,13 @@ function fadeOutAudio(audio, durationMs = 2000) {
   let step = 0;
   const fade = setInterval(() => {
     step++;
-    if (!audio || audio.paused) { clearInterval(fade); return; }
+    if (!audio || audio.paused) { clearInterval(fade); unregisterAudio(audio); return; }
     audio.volume = Math.max(0, startVol * (1 - step / steps));
     if (step >= steps) {
       clearInterval(fade);
       audio.pause();
       audio.currentTime = 0;
+      unregisterAudio(audio);
     }
   }, interval);
 }
@@ -158,12 +161,13 @@ function fadeOutDifficultyTrack(durationMs = 1500) {
   let step = 0;
   const fade = setInterval(() => {
     step++;
-    if (!audio || audio.paused) { clearInterval(fade); return; }
+    if (!audio || audio.paused) { clearInterval(fade); unregisterAudio(audio); return; }
     audio.volume = Math.max(0, startVol * (1 - step / steps));
     if (step >= steps) {
       clearInterval(fade);
       audio.pause();
       audio.currentTime = 0;
+      unregisterAudio(audio);
       if (_currentAudio === audio) _currentAudio = null;
     }
   }, interval);
@@ -178,6 +182,7 @@ function startBgMusic() {
   audio.loop = true;
   audio.volume = getMusicVolume();
   audio.play().catch(() => {});
+  registerAudio(audio);
   _bgMusic = audio;
 }
 function stopBgMusic() {
@@ -185,6 +190,7 @@ function stopBgMusic() {
   if (_bgMusic) {
     _bgMusic.pause();
     _bgMusic.currentTime = 0;
+    unregisterAudio(_bgMusic);
     _bgMusic = null;
   }
 }

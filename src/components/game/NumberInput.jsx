@@ -96,9 +96,11 @@ export default function NumberInput({ onSubmit, disabled, shakeKey = 0, onMicAct
     return unsub;
   }, []);
 
+  const inputLocked = disabled || transcribing || modelLoading;
+
   useEffect(() => {
     const handleKey = (e) => {
-      if (disabled) return;
+      if (inputLocked) return;
       if (e.key >= '0' && e.key <= '9') {
         setValue(prev => prev + e.key);
       } else if (e.key === 'Backspace') {
@@ -114,13 +116,13 @@ export default function NumberInput({ onSubmit, disabled, shakeKey = 0, onMicAct
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [disabled]);
+  }, [inputLocked]);
 
   const handleSubmit = useCallback(() => {
-    if (!value || disabled) return;
+    if (!value || inputLocked) return;
     const num = parseInt(value, 10);
     if (!isNaN(num) && num > 0) { onSubmit(num); setValue(''); }
-  }, [value, onSubmit, disabled]);
+  }, [value, onSubmit, inputLocked]);
 
   const stopStreamAndCtx = () => {
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
@@ -230,7 +232,7 @@ export default function NumberInput({ onSubmit, disabled, shakeKey = 0, onMicAct
   }, []);
 
   const handleTilePress = (digit) => {
-    if (disabled) return;
+    if (inputLocked) return;
     setValue(prev => prev + String(digit));
   };
 
@@ -276,7 +278,7 @@ export default function NumberInput({ onSubmit, disabled, shakeKey = 0, onMicAct
         {TILES.map((digit) => (
           <button
             key={digit}
-            disabled={disabled}
+            disabled={inputLocked}
             onClick={() => handleTilePress(digit)}
             className="h-14 hex-button flex items-center justify-center
                        bg-obsidian-light border-2 border-cyan/30 text-cyan font-orbitron text-xl font-bold
@@ -291,7 +293,7 @@ export default function NumberInput({ onSubmit, disabled, shakeKey = 0, onMicAct
       <div className="flex gap-3 w-full max-w-md">
         <button
           onClick={() => setValue('')}
-          disabled={disabled || !value}
+          disabled={inputLocked || !value}
           className="flex-1 h-12 rounded-lg bg-muted/50 border border-magenta/30 text-magenta font-orbitron text-sm font-bold
                      hover:bg-magenta/10 hover:border-magenta transition-all disabled:opacity-30"
         >
@@ -299,7 +301,7 @@ export default function NumberInput({ onSubmit, disabled, shakeKey = 0, onMicAct
         </button>
         <button
           onClick={handleSubmit}
-          disabled={disabled || !value}
+          disabled={inputLocked || !value}
           className="flex-[2] h-12 rounded-lg bg-cyan/10 border-2 border-cyan text-cyan font-orbitron text-lg font-bold
                      hover:bg-cyan/20 hover:shadow-[0_0_20px_rgba(0,240,255,0.3)] transition-all
                      active:scale-95 disabled:opacity-30"

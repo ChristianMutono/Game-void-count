@@ -6,10 +6,11 @@ import { getSfxVolume, setSfxVolume, getMusicVolume, setMusicVolume } from '../.
 import { loadWhisper, getActiveModelKey } from '../../lib/whisper';
 
 const ASR_OPTIONS = [
-  { key: 'whisper-base',  label: 'Whisper Base',  hint: '~74 MB · default · peak-normalised + silence-trimmed input' },
-  { key: 'whisper-small', label: 'Whisper Small', hint: '~244 MB · higher accuracy · slower first inference' },
-  { key: 'moonshine',     label: 'Moonshine',     hint: '~60 MB · tuned for short utterances · experimental' },
+  { key: 'whisper-base',  label: 'Whisper Base',  hint: '~74 MB · default · fastest' },
+  { key: 'whisper-small', label: 'Whisper Small', hint: '~244 MB · higher accuracy · slower load + inference' },
+  { key: 'moonshine',     label: 'Moonshine',     hint: '~60 MB · experimental · currently unreliable for digits' },
 ];
+const DEFAULT_ASR_KEY = 'whisper-base';
 
 export function isDebugMode() {
   return localStorage.getItem('voidcount_debug') === 'on';
@@ -56,6 +57,13 @@ export default function SettingsModal({ onClose, currentTheme, onThemeChange }) 
     const next = !debugMode;
     setDebugModeState(next);
     localStorage.setItem('voidcount_debug', next ? 'on' : 'off');
+    if (!next && asrModel !== DEFAULT_ASR_KEY) {
+      localStorage.removeItem('voidcount_asr_model');
+      setAsrModel(DEFAULT_ASR_KEY);
+      if (voiceInput) {
+        loadWhisper().catch(() => { /* surfaced inside NumberInput */ });
+      }
+    }
   };
 
   const handleVoiceInputToggle = () => {

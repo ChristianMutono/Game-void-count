@@ -195,6 +195,51 @@ Home.jsx                          Game.jsx
                                  └───────────────────────────────────┘
 ```
 
+### 5.1 CPU response pacing
+
+CPU response time is a score-keyed tiered range defined in [Game.jsx](src/pages/Game.jsx) as `CPU_RESPONSE_TIERS`, resolved each turn by `getCpuResponseRange(difficulty, score)`. The delay is uniform on `[min, max]` within the active tier:
+
+```js
+const [min, max] = getCpuResponseRange(difficulty, state.highestCounterNumber);
+const delay = min + Math.random() * (max - min);
+```
+
+Tiers (milliseconds) are ordered descending by threshold; the first threshold the score exceeds wins:
+
+| Tier | Easy | Normal | Hard | Extreme |
+|---|---|---|---|---|
+| base (≤ threshold below) | 500 – 3000 | 500 – 3000 | 500 – 3000 | 500 – 3000 |
+| score > 10 | — | 500 – 2500 | 500 – 2000 | 500 – 2000 |
+| score > 30 | 500 – 2500 | — | — | — |
+| score > 50 | — | 500 – 2000 | 500 – 1500 | 250 – 1500 |
+| score > 70 | 500 – 2000 | — | — | — |
+| score > 120 | 250 – 1000 | 500 – 1500 | 250 – 1000 | 250 – 1000 |
+
+The 50% controller-time adjustment in `getElapsedTime()` still applies, so the tighter windows contribute proportionally less to the displayed/leaderboard round time — the main effect is purely gameplay pressure, not a scoring penalty.
+
+### 5.2 CPU move distribution
+
+`generateCPUMove()` in [src/lib/gameLogic.js](src/lib/gameLogic.js) is a two-stage sampler:
+
+1. **Jump/no-jump gate.** A single `Math.random() < jumpChance` where `jumpChance` is `{easy: 0.30, normal: 0.40, hard: 0.55, extreme: 0.70}`. On tail the CPU plays the sequentially-next unused number (same move the Counter would be forced to play). On head, it enters stage 2.
+2. **Jump-size mixture.** With probability `p_max` (per-difficulty, `{easy: 0, normal: 0.05, hard: 0.06, extreme: 0.05}`) the sampler returns `maxJump` directly — a "signature dunk". Otherwise it falls through to the power-biased base:
+
+   ```js
+   jumpAmount = Math.max(1, Math.round(Math.random() ** 0.585 * (maxJump - 1)) + 1);
+   ```
+
+   The `0.585` exponent pulls the uniform roll upward on the unit interval, so larger jumps are favoured even before the boost.
+
+The mixture coefficients are calibrated so that on `normal` / `hard` / `extreme` the **max jump is the 3rd most likely** jump size. Full per-difficulty conditional and unconditional distributions live in [PRD §3.3](02_Product_Requirements_PRD.md#33-difficulty-configuration).
+
+After the target is chosen, a drift loop advances upward if the target is already taken:
+
+```js
+while (state.allNumbers.has(target) && target <= poolMax) target++;
+```
+
+So late-game turns lay even wider gaps than the intent distribution suggests, because filled cells below the rolled target push the landing spot higher.
+
 ---
 
 ## 6. Audio Architecture
@@ -219,7 +264,7 @@ Background music and difficulty hover tracks use native `Audio` objects. Volume 
 - Home background: `× 1.0`
 - Difficulty hover (over button): `× 1.0` (at 400ms fade-in)
 - Home background while hovering a difficulty: `× 0.5` (gently ducked)
-- In-game background: `× 0.6`
+- In-game background: `× 0.5`
 
 Tracks cross-fade via `setInterval`-driven ramps. The `detachDifficultyTrack()` pattern lets a hover track continue playing across a navigation so it fades out over 2–2.5 seconds after the new scene appears.
 
@@ -260,10 +305,12 @@ The grace window's actual elapsed duration is accumulated onto `gameState.micGra
 ### Score-based timer extensions
 
 In addition to the mic grace, the per-turn timer duration itself grows with the counter's progress:
-- Score **≥ 77** adds **+0.5s** to every subsequent turn's timer.
-- Score **≥ 100** adds another **+0.5s** (cumulative +1.0s past 100).
+- Score **≥ 77** adds **+0.5s** to every subsequent turn's timer (cognitive-load relief).
+- Score **≥ 100** adds another **+0.5s** (to absorb the extra keystroke of a three-digit number).
 
-The extension is computed from `gameState.highestCounterNumber` each render inside `Game.jsx` and passed as `duration` to the `<TimerBar>`, so the new value takes effect on the very next timer reset.
+On **hard** and **extreme** difficulties the 77 grace is skipped — those players get the 100 grace exclusively, keeping mid-game pacing merciless. Easy and Normal receive both graces.
+
+The extension is computed from `gameState.highestCounterNumber` and `difficulty` each render inside `Game.jsx` and passed as `duration` to the `<TimerBar>`, so the new value takes effect on the very next timer reset.
 
 ### Elapsed-time accounting
 

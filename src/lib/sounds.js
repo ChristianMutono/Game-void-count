@@ -3,10 +3,55 @@ let _muted = false;
 let _sfxVolume = parseFloat(localStorage.getItem('voidcount_sfx_volume') ?? '0.85');
 let _musicVolume = parseFloat(localStorage.getItem('voidcount_music_volume') ?? '0.85');
 
+const _audioRegistry = new Set();
+const _pausedByVisibility = new WeakSet();
+
+export function registerAudio(el) {
+  if (el) _audioRegistry.add(el);
+}
+export function unregisterAudio(el) {
+  _audioRegistry.delete(el);
+  _pausedByVisibility.delete(el);
+}
+
+function isTabHidden() {
+  return typeof document !== 'undefined' && document.hidden === true;
+}
+
 function getCtx() {
   if (!_ctx) _ctx = new (window.AudioContext || window.webkitAudioContext)();
-  if (_ctx.state === 'suspended') _ctx.resume();
+  if (_ctx.state === 'suspended' && !isTabHidden()) _ctx.resume();
   return _ctx;
+}
+
+let _visibilityBound = false;
+export function installVisibilityMute() {
+  if (_visibilityBound || typeof document === 'undefined') return;
+  _visibilityBound = true;
+  const handler = () => {
+    if (document.hidden) {
+      for (const el of _audioRegistry) {
+        if (!el.paused) {
+          _pausedByVisibility.add(el);
+          try { el.pause(); } catch (_) { /* noop */ }
+        }
+      }
+      if (_ctx && _ctx.state === 'running') {
+        _ctx.suspend().catch(() => { /* noop */ });
+      }
+    } else {
+      for (const el of _audioRegistry) {
+        if (_pausedByVisibility.has(el)) {
+          _pausedByVisibility.delete(el);
+          el.play().catch(() => { /* browser may still gate on user gesture */ });
+        }
+      }
+      if (_ctx && _ctx.state === 'suspended') {
+        _ctx.resume().catch(() => { /* noop */ });
+      }
+    }
+  };
+  document.addEventListener('visibilitychange', handler);
 }
 
 // Pre-unlock AudioContext on first user interaction so all sounds work immediately

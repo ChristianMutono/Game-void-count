@@ -8,8 +8,9 @@ import {
   applyCPUMove,
   DIFFICULTIES,
   getNextRequiredCounter,
+  getPoolMax,
 } from '../lib/gameLogic';
-import { sounds, getMusicVolume, isMuted } from '../lib/sounds';
+import { sounds, getMusicVolume, isMuted, registerAudio, unregisterAudio } from '../lib/sounds';
 import CRTOverlay from '../components/game/CRTOverlay';
 import TimerBar from '../components/game/TimerBar';
 import NumberInput from '../components/game/NumberInput';
@@ -18,6 +19,23 @@ import LossScreen from '../components/game/LossScreen';
 import Leaderboard from '../components/game/Leaderboard';
 import { isDebugMode } from '../components/game/SettingsModal';
 import { Volume2, VolumeX } from 'lucide-react';
+
+// Dynamic CPU response ranges [minMs, maxMs]. Tiers key off the counter's
+// highest submitted number (the current "score") so the controller presses
+// harder as the round matures. See PRD §3.3.
+const CPU_RESPONSE_TIERS = {
+  easy:    [[120, 250, 1000], [70, 500, 2000], [30, 500, 2500], [-1, 500, 3000]],
+  normal:  [[120, 500, 1500], [50, 500, 2000], [10, 500, 2500], [-1, 500, 3000]],
+  hard:    [[120, 250, 1000], [50, 500, 1500], [10, 500, 2000], [-1, 500, 3000]],
+  extreme: [[120, 250, 1000], [50, 250, 1500], [10, 500, 2000], [-1, 500, 3000]],
+};
+function getCpuResponseRange(difficulty, score) {
+  const tiers = CPU_RESPONSE_TIERS[difficulty] || CPU_RESPONSE_TIERS.normal;
+  for (const [threshold, min, max] of tiers) {
+    if (score > threshold) return [min, max];
+  }
+  return [500, 3000];
+}
 
 export default function Game() {
   const navigate = useNavigate();
@@ -36,6 +54,7 @@ export default function Game() {
   const [debugMode] = useState(() => isDebugMode());
   const [musicMuted, setMusicMuted] = useState(false);
   const [micGrace, setMicGrace] = useState(false);
+  const [cpuShuffleNumber, setCpuShuffleNumber] = useState(null);
 
   const gameStateRef = useRef(gameState);
   gameStateRef.current = gameState;
@@ -50,15 +69,17 @@ export default function Game() {
     if (isMuted() || musicMuted) {
       if (bgMusicRef.current) {
         bgMusicRef.current.pause();
+        unregisterAudio(bgMusicRef.current);
         bgMusicRef.current = null;
       }
       return;
     }
     const audio = new Audio('/audio/homescreen_background.mp3');
     audio.loop = true;
-    const targetVol = getMusicVolume() * 0.6;
+    const targetVol = getMusicVolume() * 0.5;
     audio.volume = 0;
     audio.play().catch(() => {});
+    registerAudio(audio);
     bgMusicRef.current = audio;
     // Fade in over 2s
     const steps = 40;
@@ -74,6 +95,7 @@ export default function Game() {
       clearInterval(fade);
       audio.pause();
       audio.currentTime = 0;
+      unregisterAudio(audio);
       bgMusicRef.current = null;
     };
   }, [musicMuted]);
@@ -97,8 +119,8 @@ export default function Game() {
   const doCPUTurn = useCallback((state) => {
     if (mode !== 'single') return;
     setCpuThinking(true);
-    const maxDelay = { easy: 2500, normal: 2000, hard: 1500, extreme: 1500 }[difficulty] || 2500;
-    const delay = 500 + Math.random() * maxDelay;
+    const [minMs, maxMs] = getCpuResponseRange(difficulty, state.highestCounterNumber || 0);
+    const delay = minMs + Math.random() * (maxMs - minMs);
 
     setTimeout(() => {
       const cpuNum = generateCPUMove(state, difficulty);
@@ -113,10 +135,9 @@ export default function Game() {
   }, [mode, difficulty]);
 
   const scoreSoFar = gameState.highestCounterNumber || 0;
-  const effectiveTimerDuration =
-    diff.timer +
-    (scoreSoFar >= 77 ? 0.5 : 0) +
-    (scoreSoFar >= 100 ? 0.5 : 0);
+  const grace77 = (difficulty === 'easy' || difficulty === 'normal') && scoreSoFar >= 77 ? 0.5 : 0;
+  const grace100 = scoreSoFar >= 100 ? 0.5 : 0;
+  const effectiveTimerDuration = diff.timer + grace77 + grace100;
 
   const handleMicActivate = useCallback(() => {
     if (!micGraceAvailableRef.current) return;
@@ -135,6 +156,31 @@ export default function Game() {
   useEffect(() => () => {
     if (micGraceTimeoutRef.current) clearTimeout(micGraceTimeoutRef.current);
   }, []);
+
+  useEffect(() => {
+    const state = gameStateRef.current;
+    const score = state.highestCounterNumber || 0;
+    const shuffleActive =
+      cpuThinking &&
+      ((difficulty === 'extreme' && score > 30) ||
+       (difficulty === 'hard' && score > 100));
+    if (!shuffleActive) {
+      setCpuShuffleNumber(null);
+      return;
+    }
+    const poolMax = getPoolMax(difficulty);
+    const nextSeq = getNextRequiredCounter(state);
+    const maxJump = diff.jump;
+    const pool = [];
+    for (let n = nextSeq; n <= poolMax && pool.length < maxJump + 1; n++) {
+      if (!state.allNumbers.has(n)) pool.push(n);
+    }
+    if (pool.length === 0) return;
+    const pick = () => pool[Math.floor(Math.random() * pool.length)];
+    setCpuShuffleNumber(pick());
+    const id = setInterval(() => setCpuShuffleNumber(pick()), 35);
+    return () => clearInterval(id);
+  }, [cpuThinking, difficulty, diff.jump]);
 
   const handleCounterSubmit = useCallback((number) => {
     const state = gameStateRef.current;
@@ -256,7 +302,7 @@ export default function Game() {
 
       {/* Game area */}
       <div className="flex-1 flex flex-col items-center justify-between px-4 py-4 max-w-lg mx-auto w-full">
-        <GameHUD gameState={gameState} timerPct={timerPct} mode={mode} debugMode={debugMode} />
+        <GameHUD gameState={gameState} timerPct={timerPct} mode={mode} debugMode={debugMode} difficulty={difficulty} />
 
         {!gameState.isStarted && !gameState.gameOver && (
           <div className="text-center my-4">
@@ -272,10 +318,24 @@ export default function Game() {
 
         {cpuThinking && (
           <div className="text-center my-4">
-            <div className="font-orbitron text-lg text-magenta neon-glow-magenta"
-                 style={{ animation: 'neon-pulse 0.5s ease-in-out infinite' }}>
-              CONTROLLER THINKING...
-            </div>
+            {cpuShuffleNumber !== null ? (
+              <>
+                <div className="font-mono text-[10px] text-magenta/60 uppercase tracking-widest mb-1">
+                  Controller scanning…
+                </div>
+                <div
+                  className="font-orbitron font-black text-magenta neon-glow-magenta tabular-nums leading-none"
+                  style={{ fontSize: 'clamp(3rem, 10vw, 4.5rem)' }}
+                >
+                  {cpuShuffleNumber}
+                </div>
+              </>
+            ) : (
+              <div className="font-orbitron text-lg text-magenta neon-glow-magenta"
+                   style={{ animation: 'neon-pulse 0.5s ease-in-out infinite' }}>
+                CONTROLLER THINKING...
+              </div>
+            )}
           </div>
         )}
 

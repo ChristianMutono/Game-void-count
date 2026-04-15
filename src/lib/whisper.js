@@ -3,6 +3,25 @@ import { pipeline, env } from '@xenova/transformers';
 env.allowLocalModels = false;
 env.useBrowserCache = true;
 
+// Performance: use SIMD + all available cores on the WASM backend. These
+// are no-ops on browsers without crossOriginIsolation (threads disabled),
+// but the SIMD path and numThreads=1 is still faster than the scalar default.
+if (env.backends?.onnx?.wasm) {
+  try {
+    const cores = typeof navigator !== 'undefined' ? (navigator.hardwareConcurrency || 4) : 4;
+    env.backends.onnx.wasm.numThreads = Math.min(4, cores);
+    env.backends.onnx.wasm.simd = true;
+  } catch (_) { /* noop */ }
+}
+
+async function hasWebGPU() {
+  try {
+    if (!('gpu' in navigator)) return false;
+    const adapter = await navigator.gpu.requestAdapter();
+    return !!adapter;
+  } catch (_) { return false; }
+}
+
 // Swap the active model by setting localStorage.voidcount_asr_model to one of
 // the keys below (e.g. in devtools) — default is whisper-base.en. See the
 // TAD §7 "Voice tuning" section for full trade-off notes.
@@ -43,21 +62,36 @@ export function isModelReady() {
   return modelReady;
 }
 
+async function buildPipeline(active) {
+  const progress_callback = (p) => {
+    if (p.status === 'progress' && typeof p.progress === 'number') {
+      notifyProgress(p.progress);
+    } else if (p.status === 'ready' || p.status === 'done') {
+      notifyProgress(100);
+    }
+  };
+  const baseOpts = { quantized: true, progress_callback };
+
+  if (await hasWebGPU()) {
+    try {
+      return await pipeline('automatic-speech-recognition', active.id, {
+        ...baseOpts,
+        device: 'webgpu',
+      });
+    } catch (err) {
+      console.warn('[whisper] WebGPU pipeline failed, falling back to WASM:', err);
+    }
+  }
+  return pipeline('automatic-speech-recognition', active.id, baseOpts);
+}
+
 export function loadWhisper() {
   const active = getActiveModel();
   if (pipelinePromise && loadedKey === active.key) return pipelinePromise;
   modelReady = false;
   loadProgress = 0;
   loadedKey = active.key;
-  pipelinePromise = pipeline('automatic-speech-recognition', active.id, {
-    progress_callback: (p) => {
-      if (p.status === 'progress' && typeof p.progress === 'number') {
-        notifyProgress(p.progress);
-      } else if (p.status === 'ready' || p.status === 'done') {
-        notifyProgress(100);
-      }
-    },
-  }).then((asr) => {
+  pipelinePromise = buildPipeline(active).then((asr) => {
     modelReady = true;
     notifyProgress(100);
     return asr;
@@ -82,7 +116,7 @@ function peakNormalize(float32, target = 0.95) {
   return out;
 }
 
-function trimSilence(float32, sampleRate, threshold = 0.012, paddingMs = 80) {
+function trimSilence(float32, sampleRate, threshold = 0.02, paddingMs = 50) {
   const windowSize = Math.max(1, Math.floor(sampleRate * 0.02));
   const rmsAt = (i) => {
     const end = Math.min(i + windowSize, float32.length);
@@ -154,6 +188,12 @@ export async function transcribe(blob) {
     stride_length_s: 0,
     language: 'english',
     task: 'transcribe',
+    // Decoder speedups: numbers 1–250 decode to ≤4 tokens, so we cap far
+    // below the 448-token default. Greedy decoding (no beams) halves decoder
+    // work again.
+    max_new_tokens: 24,
+    num_beams: 1,
+    no_repeat_ngram_size: 2,
   });
   return (result?.text || '').trim();
 }
