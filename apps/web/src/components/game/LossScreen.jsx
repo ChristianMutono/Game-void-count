@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getTaunt } from '../../lib/taunts';
-import { getScore, getElapsedTime, saveToLeaderboard } from '../../lib/gameLogic';
-import { getPlayerName, setPlayerName, MAX_NAME_LEN } from '../../lib/playerName';
+import { getTaunt, getScore, getElapsedTime, saveToLeaderboard, getPlayerName, setPlayerName, MAX_NAME_LEN } from '@void-count/core';
 import { isDebugMode } from './SettingsModal';
 import { RotateCcw, Home, Trophy } from 'lucide-react';
 

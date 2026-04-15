@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Trash2, Bug, Volume2, Music, Mic } from 'lucide-react';
 import { THEMES, applyTheme } from '../../lib/themes';
-import { getPlayerName, setPlayerName, MAX_NAME_LEN } from '../../lib/playerName';
+import { getPlayerName, setPlayerName, MAX_NAME_LEN } from '@void-count/core';
 import { getSfxVolume, setSfxVolume, getMusicVolume, setMusicVolume } from '../../lib/sounds';
 import { loadWhisper, getActiveModelKey } from '../../lib/whisper';
 import { loadDigitRecognizer } from '../../lib/digitSpelling';

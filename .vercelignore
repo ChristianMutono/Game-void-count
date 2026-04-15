@@ -1,0 +1,5 @@
+apps/mobile/
+packages/*/node_modules/
+node_modules/
+.claude/
+docs/mobile/

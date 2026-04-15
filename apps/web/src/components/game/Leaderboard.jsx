@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getLeaderboard } from '../../lib/gameLogic';
+import { getLeaderboard } from '@void-count/core';
 import { X, Trophy } from 'lucide-react';
 
 const TABS = [

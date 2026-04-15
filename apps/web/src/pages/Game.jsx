@@ -9,7 +9,7 @@ import {
   DIFFICULTIES,
   getNextRequiredCounter,
   getPoolMax,
-} from '../lib/gameLogic';
+} from '@void-count/core';
 import { sounds, getMusicVolume, isMuted, registerAudio, unregisterAudio } from '../lib/sounds';
 import CRTOverlay from '../components/game/CRTOverlay';
 import TimerBar from '../components/game/TimerBar';

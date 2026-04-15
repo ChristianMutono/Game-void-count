@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DIFFICULTIES } from '../lib/gameLogic';
+import { DIFFICULTIES } from '@void-count/core';
 import CRTOverlay from '../components/game/CRTOverlay';
 import Leaderboard from '../components/game/Leaderboard';
 import FAQ from '../components/game/FAQ';

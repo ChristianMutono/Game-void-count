@@ -1,0 +1,21 @@
+{
+  "name": "@void-count/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./gameLogic": "./src/gameLogic.js",
+    "./taunts": "./src/taunts.js",
+    "./playerName": "./src/playerName.js",
+    "./parseSpoken": "./src/parseSpoken.js"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.4"
+  }
+}

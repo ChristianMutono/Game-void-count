@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getNextRequiredCounter, getScore, getLeaderboard } from '../../lib/gameLogic';
+import { getNextRequiredCounter, getScore, getLeaderboard } from '@void-count/core';
 
 export default function GameHUD({ gameState, timerPct, mode, debugMode, difficulty }) {
   const score = getScore(gameState);

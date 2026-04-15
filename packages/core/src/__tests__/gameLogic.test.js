@@ -13,7 +13,7 @@ import {
   getElapsedTime,
   getLeaderboard,
   saveToLeaderboard,
-} from '../lib/gameLogic';
+} from '../gameLogic.js';
 
 // Mock localStorage for leaderboard tests
 const localStorageMock = (() => {

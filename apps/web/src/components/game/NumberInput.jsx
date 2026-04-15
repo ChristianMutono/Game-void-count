@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Mic, Loader2 } from 'lucide-react';
+import { parseSpoken } from '@void-count/core';
 import { transcribe, loadWhisper, isModelReady, onLoadProgress, getActiveModelKey } from '../../lib/whisper';
 import {
   startDigitStream,
@@ -11,59 +12,6 @@ import {
 import { isVoiceInputEnabled } from './SettingsModal';
 
 const TILES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
-
-const WORD_MAP = {
-  zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,
-  eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,
-  seventeen:17,eighteen:18,nineteen:19,twenty:20,
-  thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90,
-  hundred:100,
-};
-
-const TENS_WORDS = { twenty:20, thirty:30, forty:40, fifty:50, sixty:60, seventy:70, eighty:80, ninety:90 };
-const UNITS_WORDS = { one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9 };
-
-function parseSpoken(raw) {
-  const text = raw.toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!text) return null;
-
-  const asInt = parseInt(text.replace(/\s/g, ''), 10);
-  if (!isNaN(asInt) && asInt > 0 && asInt <= 250) return asInt;
-
-  const firstNumMatch = text.match(/\d{1,3}/);
-  if (firstNumMatch) {
-    const n = parseInt(firstNumMatch[0], 10);
-    if (n > 0 && n <= 250) return n;
-  }
-
-  const words = text.split(' ');
-
-  let hundreds = 0;
-  let rest = words;
-  const hundredIdx = words.indexOf('hundred');
-  if (hundredIdx !== -1) {
-    const prev = words[hundredIdx - 1];
-    hundreds = (prev && UNITS_WORDS[prev]) ? UNITS_WORDS[prev] * 100 : 100;
-    rest = words.slice(hundredIdx + 1).filter(w => w !== 'and');
-  }
-
-  let remainder = 0;
-  if (rest.length >= 2 && TENS_WORDS[rest[0]] && UNITS_WORDS[rest[1]]) {
-    remainder = TENS_WORDS[rest[0]] + UNITS_WORDS[rest[1]];
-  } else if (rest.length >= 1) {
-    for (const w of rest) {
-      if (w in WORD_MAP) { remainder = WORD_MAP[w]; break; }
-    }
-  }
-
-  const total = hundreds + remainder;
-  if (total > 0 && total <= 250) return total;
-
-  for (const w of words) {
-    if (w in WORD_MAP && WORD_MAP[w] > 0) return WORD_MAP[w];
-  }
-  return null;
-}
 
 export default function NumberInput({ onSubmit, disabled, shakeKey = 0, onMicActivate }) {
   const isDigitMode = getActiveModelKey() === 'digit-spelling';

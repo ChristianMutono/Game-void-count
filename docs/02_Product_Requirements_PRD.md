@@ -7,7 +7,9 @@
 
 ## 1. Scope
 
-This document defines the functional and non-functional requirements for Void Count. It reflects the current shipped behaviour of the game.
+This document defines the functional and non-functional requirements for Void Count **across all editions** (web PWA, iOS, Android). Game rules, difficulty matrices, taunt matrices, and leaderboard contracts apply to every edition.
+
+Where platform-specific behaviour diverges, the text is tagged `[web]`, `[mobile]`, `[ios]`, or `[android]`. Architectural realisation — how each edition actually implements these requirements — lives in the per-platform TAD (`docs/web/03_...` and `docs/mobile/03_...`).
 
 ---
 
@@ -111,15 +113,16 @@ The minimum floor drops from 0.5s to 0.25s at the deepest tiers of `easy`/`hard`
 
 ### 3.4 Input Methods
 
-- **FR-I-1** The game SHALL support three concurrent input methods: keyboard, touch, voice
-- **FR-I-2** Keyboard — digits append to input, Backspace clears last, Enter submits
-- **FR-I-3** Touch — oversized hex-styled buttons for digits 0–9, plus CLR and Submit
-- **FR-I-4** Voice — **on-device push-to-talk** using OpenAI Whisper (`Xenova/whisper-tiny.en`) via `@xenova/transformers` running entirely in-browser (WASM + ONNX)
-  - The mic button SHALL be **hold-to-speak**: press starts recording via `MediaRecorder`, release stops recording and triggers transcription
-  - SHALL parse spoken numbers 1–200, including compound words ("twenty-one", "one hundred and twelve", etc.)
-  - SHALL display a live volume meter while the mic is held and a status indicator during model load, recording, and transcription
-  - The Whisper model SHALL be lazily fetched from the Hugging Face CDN on first use and cached in the browser for subsequent sessions
-  - No server-side inference is required; all speech processing SHALL run locally in the user's browser
+- **FR-I-1** The game SHALL support keyboard `[web]`, touch `[web|mobile]`, and voice `[web|mobile]` as concurrent input methods
+- **FR-I-2** Keyboard `[web]` — digits append to input, Backspace clears last, Enter submits
+- **FR-I-3** Touch `[web|mobile]` — oversized hex-styled buttons for digits 0–9, plus CLR and Submit
+- **FR-I-4** Voice — on-device speech recognition that parses spoken numbers 1–200 (including compound words such as "twenty-one" or "one hundred and twelve") and submits them to the counter pipeline.
+  - `[web]` Implemented via `@xenova/transformers` (Whisper base.en, distil-whisper, or digit-spelling via TF.js speech-commands). Push-to-talk only. Held recording is transcribed on release. Model loads lazily from the Hugging Face CDN and caches in IndexedDB. Full details in `docs/web/03_Technical_Architecture_TAD.md`. **Known limitation:** WASM encoder latency of ~3–7 s per utterance; voice input is shipped as an opt-in Beta.
+  - `[mobile]` Implemented via native speech recognition (`SFSpeechRecognizer` on iOS, Android `SpeechRecognizer`) through `@react-native-voice/voice` or `expo-speech-recognition`. Two modes selectable in Settings:
+    - **Push-to-Talk** (default) — press-and-hold mic button, release to submit.
+    - **Continuous Listening** — opt-in toggle; mic icon is permanently visible in-game but starts off at round start. Tapping the mic toggles streaming recognition on/off. Each recognised utterance is parsed and submitted. The mic SHALL NOT listen outside an active round regardless of mode.
+  - `[mobile]` Mobile voice inherits the 1.5-second timer grace from `FR-D-3` on activation only. Continuous mode does not extend grace per recognised utterance.
+  - `[mobile]` Backgrounding the app SHALL stop any active recognition session immediately.
 
 ### 3.5 Visual Design
 

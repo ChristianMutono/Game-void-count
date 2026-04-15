@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getTaunt } from '../lib/taunts';
+import { getTaunt } from '../taunts.js';
 
 const FAILURE_TYPES = ['duplicate', 'stolen', 'invalid_jump', 'timeout'];
 const SCORE_BANDS = [
