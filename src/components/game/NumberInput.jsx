@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Mic, Loader2 } from 'lucide-react';
 import { transcribe, loadWhisper, isModelReady, onLoadProgress } from '../../lib/whisper';
+import { isVoiceInputEnabled } from './SettingsModal';
 
 const TILES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0];
 
@@ -20,12 +21,12 @@ function parseSpoken(raw) {
   if (!text) return null;
 
   const asInt = parseInt(text.replace(/\s/g, ''), 10);
-  if (!isNaN(asInt) && asInt > 0 && asInt <= 220) return asInt;
+  if (!isNaN(asInt) && asInt > 0 && asInt <= 250) return asInt;
 
   const firstNumMatch = text.match(/\d{1,3}/);
   if (firstNumMatch) {
     const n = parseInt(firstNumMatch[0], 10);
-    if (n > 0 && n <= 220) return n;
+    if (n > 0 && n <= 250) return n;
   }
 
   const words = text.split(' ');
@@ -49,7 +50,7 @@ function parseSpoken(raw) {
   }
 
   const total = hundreds + remainder;
-  if (total > 0 && total <= 220) return total;
+  if (total > 0 && total <= 250) return total;
 
   for (const w of words) {
     if (w in WORD_MAP && WORD_MAP[w] > 0) return WORD_MAP[w];
@@ -244,7 +245,8 @@ export default function NumberInput({ onSubmit, disabled, shakeKey = 0, onMicAct
 
   const hasVoice = typeof window !== 'undefined' &&
     !!navigator.mediaDevices?.getUserMedia &&
-    typeof window.MediaRecorder !== 'undefined';
+    typeof window.MediaRecorder !== 'undefined' &&
+    isVoiceInputEnabled();
 
   const micBusy = modelLoading || transcribing;
   const micStatus = modelLoading
@@ -260,7 +262,7 @@ export default function NumberInput({ onSubmit, disabled, shakeKey = 0, onMicAct
       <div className={`glass-panel rounded-xl px-6 py-3 w-full max-w-xs text-center min-h-[56px]
                        flex items-center justify-center ${shaking ? 'shake' : ''}`}>
         <span className="font-orbitron text-3xl md:text-4xl font-bold text-cyan neon-glow-cyan tracking-wider">
-          {value || <span className="text-muted-foreground/40 text-lg">TYPE / TAP / HOLD MIC</span>}
+          {value || <span className="text-muted-foreground/40 text-lg">{hasVoice ? 'TYPE / TAP / HOLD MIC' : 'TYPE / TAP'}</span>}
         </span>
       </div>
 

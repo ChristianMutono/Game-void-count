@@ -276,6 +276,35 @@ elapsed = max(0, wall − 0.5 × controllerTimeMs/1000 − micGraceTimeMs/1000)
 - `controllerTimeMs` is accumulated in `doCPUTurn` using the same random delay the CPU used to `setTimeout`. Counting only 50% of CPU time keeps difficulty tiers time-comparable without completely hiding the CPU's pacing.
 - `micGraceTimeMs` is accumulated when each 1.5s grace window completes. Full grace time is subtracted so voice players aren't penalised for using the intended feature.
 
+### Audio preprocessing (before inference)
+
+Before the Float32 buffer is handed to the ASR pipeline, [src/lib/whisper.js](src/lib/whisper.js) applies three DSP passes:
+
+1. **Silence trim** — scans 20ms RMS windows from both ends and clips leading/trailing silence below a 0.012 RMS threshold, keeping 80ms of padding on either side so consonants aren't clipped.
+2. **Peak normalisation** — rescales the entire clip so its maximum absolute sample sits at 0.95. This compensates for wildly varying input levels (phone mics vs laptop mics, shouters vs whisperers) and prevents clipped-input pathologies.
+3. **Minimum-length padding** — pads short clips out to ≥1 second with centred zero samples, since Whisper-family models are trained on 30s windows and handle sub-500ms clips poorly.
+
+### Swappable ASR backend
+
+Whisper's accuracy on short, isolated numbers is the limiting factor in voice input. [src/lib/whisper.js](src/lib/whisper.js) ships a `MODELS` registry so the backing model can be switched without touching the call site:
+
+| Key | Hugging Face model | Download | Notes |
+|---|---|---|---|
+| `whisper-base` *(default)* | `Xenova/whisper-base.en` | ~74 MB | Current default — materially better than tiny on short single-word utterances |
+| `whisper-small` | `Xenova/whisper-small.en` | ~244 MB | Near-production accuracy. Slower first-load + first-inference (~400ms). Use if `base` still miss-transcribes at conversational volume |
+| `whisper-tiny` | `Xenova/whisper-tiny.en` | ~40 MB | Original build. Kept as a fallback for very slow devices |
+| `moonshine` | `onnx-community/moonshine-base-ONNX` | ~60 MB | Newer model purpose-built for short utterances; runs ~5× faster than Whisper-tiny at comparable accuracy. Preferred if the Whisper variants still underperform on digit-only inputs |
+
+To swap at runtime, set the localStorage key `voidcount_asr_model` to one of the registry keys and reload:
+
+```js
+localStorage.setItem('voidcount_asr_model', 'whisper-small'); location.reload();
+```
+
+The `loadWhisper()` loader detects a changed key and rebuilds the pipeline with the new model. The cached prior model stays in IndexedDB and reactivates instantly if you switch back.
+
+> **Known follow-ups** if accuracy remains a complaint: (a) disabling `autoGainControl`/`noiseSuppression` in the `getUserMedia` constraints (AGC distorts shouted speech before the model ever sees it); (b) adding a confirmation step for low-confidence transcripts; (c) constructing `forced_decoder_ids` via the tokenizer to hard-constrain output to digit-word vocabulary. The current parser already clamps anything outside 1–250 in [src/components/game/NumberInput.jsx](src/components/game/NumberInput.jsx) `parseSpoken()`.
+
 ### Transcript parsing
 
 `parseSpoken()` normalises the Whisper transcript (punctuation stripped, hyphens collapsed) and tries, in order:

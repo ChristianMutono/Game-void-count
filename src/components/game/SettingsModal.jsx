@@ -1,19 +1,39 @@
-import { useState } from 'react';
-import { X, Trash2, Bug, Volume2, Music } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Trash2, Bug, Volume2, Music, Mic } from 'lucide-react';
 import { THEMES, applyTheme } from '../../lib/themes';
 import { getPlayerName, setPlayerName, MAX_NAME_LEN } from '../../lib/playerName';
 import { getSfxVolume, setSfxVolume, getMusicVolume, setMusicVolume } from '../../lib/sounds';
+import { loadWhisper, getActiveModelKey } from '../../lib/whisper';
+
+const ASR_OPTIONS = [
+  { key: 'whisper-base',  label: 'Whisper Base',  hint: '~74 MB · default · peak-normalised + silence-trimmed input' },
+  { key: 'whisper-small', label: 'Whisper Small', hint: '~244 MB · higher accuracy · slower first inference' },
+  { key: 'moonshine',     label: 'Moonshine',     hint: '~60 MB · tuned for short utterances · experimental' },
+];
 
 export function isDebugMode() {
   return localStorage.getItem('voidcount_debug') === 'on';
 }
 
+export function isVoiceInputEnabled() {
+  return localStorage.getItem('voidcount_voice_input') === 'on';
+}
+
 export default function SettingsModal({ onClose, currentTheme, onThemeChange }) {
   const [name, setName] = useState(getPlayerName());
   const [debugMode, setDebugModeState] = useState(isDebugMode());
+  const [voiceInput, setVoiceInputState] = useState(isVoiceInputEnabled());
+  const [showBetaNotice, setShowBetaNotice] = useState(false);
   const [cleared, setCleared] = useState(false);
   const [sfxVol, setSfxVol] = useState(getSfxVolume());
   const [musicVol, setMusicVol] = useState(getMusicVolume());
+  const [asrModel, setAsrModel] = useState(getActiveModelKey());
+
+  useEffect(() => {
+    if (!showBetaNotice) return;
+    const t = setTimeout(() => setShowBetaNotice(false), 4000);
+    return () => clearTimeout(t);
+  }, [showBetaNotice]);
 
   const handleNameChange = (e) => {
     const val = e.target.value.slice(0, MAX_NAME_LEN);
@@ -36,6 +56,25 @@ export default function SettingsModal({ onClose, currentTheme, onThemeChange }) 
     const next = !debugMode;
     setDebugModeState(next);
     localStorage.setItem('voidcount_debug', next ? 'on' : 'off');
+  };
+
+  const handleVoiceInputToggle = () => {
+    const next = !voiceInput;
+    setVoiceInputState(next);
+    localStorage.setItem('voidcount_voice_input', next ? 'on' : 'off');
+    if (next) {
+      setShowBetaNotice(true);
+      loadWhisper().catch(() => { /* surfaced inside NumberInput */ });
+    }
+  };
+
+  const handleAsrModelChange = (key) => {
+    if (key === asrModel) return;
+    setAsrModel(key);
+    localStorage.setItem('voidcount_asr_model', key);
+    if (voiceInput) {
+      loadWhisper().catch(() => { /* surfaced inside NumberInput */ });
+    }
   };
 
   return (
@@ -125,6 +164,37 @@ export default function SettingsModal({ onClose, currentTheme, onThemeChange }) 
           </div>
         </div>
 
+        {/* Voice Input (Beta) */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Mic size={14} className="text-muted-foreground" />
+            <div>
+              <div className="font-orbitron text-xs text-muted-foreground uppercase tracking-widest">Voice Input <span className="text-magenta/70">(Beta)</span></div>
+              <div className="font-mono text-xs text-muted-foreground/60 mt-0.5">
+                {voiceInput ? 'Mic button visible in-game' : 'Hidden during play'}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={handleVoiceInputToggle}
+            className={`w-12 h-6 rounded-full transition-all relative ${
+              voiceInput ? 'bg-magenta/60' : 'bg-muted'
+            }`}
+          >
+            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${
+              voiceInput ? 'left-7' : 'left-1'
+            }`} />
+          </button>
+        </div>
+
+        {showBetaNotice && (
+          <div className="glass-panel-magenta rounded-lg px-3 py-2 border border-magenta/40 -mt-2">
+            <div className="font-mono text-[11px] text-magenta/90 leading-snug">
+              Voice input is still in beta — transcription can be finicky with loud or fast speech. Speak clearly and at a measured volume for best results.
+            </div>
+          </div>
+        )}
+
         {/* Debug Mode */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -147,6 +217,42 @@ export default function SettingsModal({ onClose, currentTheme, onThemeChange }) 
             }`} />
           </button>
         </div>
+
+        {/* Voice Model (debug-only) */}
+        {debugMode && (
+          <div className="glass-panel rounded-lg p-3 border border-yellow/30 -mt-2">
+            <div className="font-orbitron text-[10px] text-yellow/80 uppercase tracking-widest mb-2">
+              Voice Model (Debug)
+            </div>
+            <div className="flex flex-col gap-2">
+              {ASR_OPTIONS.map(opt => (
+                <label
+                  key={opt.key}
+                  className={`flex items-start gap-2 cursor-pointer rounded-md px-2 py-1.5 border transition-all
+                    ${asrModel === opt.key
+                      ? 'border-yellow/60 bg-yellow/5'
+                      : 'border-transparent hover:border-yellow/20 hover:bg-yellow/5'}`}
+                >
+                  <input
+                    type="radio"
+                    name="asr-model"
+                    value={opt.key}
+                    checked={asrModel === opt.key}
+                    onChange={() => handleAsrModelChange(opt.key)}
+                    className="mt-0.5 accent-yellow"
+                  />
+                  <div className="flex-1">
+                    <div className="font-orbitron text-xs text-foreground/90">{opt.label}</div>
+                    <div className="font-mono text-[10px] text-muted-foreground/70 mt-0.5">{opt.hint}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div className="font-mono text-[10px] text-muted-foreground/50 mt-2 leading-snug">
+              Switches take effect on the next mic press. Previously-loaded models stay cached in IndexedDB for instant re-use.
+            </div>
+          </div>
+        )}
 
         {/* Clear Rankings */}
         <button

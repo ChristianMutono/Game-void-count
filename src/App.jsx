@@ -7,9 +7,11 @@ import PageNotFound from './lib/PageNotFound';
 import Home from './pages/Home';
 import Game from './pages/Game';
 import { loadWhisper } from './lib/whisper';
+import { isVoiceInputEnabled } from './components/game/SettingsModal';
 
 function App() {
   useEffect(() => {
+    if (!isVoiceInputEnabled()) return;
     const schedule = window.requestIdleCallback || ((cb) => setTimeout(cb, 800));
     const handle = schedule(() => {
       loadWhisper().catch((err) => console.warn('[whisper] preload failed:', err));

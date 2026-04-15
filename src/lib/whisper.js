@@ -3,9 +3,27 @@ import { pipeline, env } from '@xenova/transformers';
 env.allowLocalModels = false;
 env.useBrowserCache = true;
 
-const MODEL = 'Xenova/whisper-tiny.en';
+// Swap the active model by setting localStorage.voidcount_asr_model to one of
+// the keys below (e.g. in devtools) — default is whisper-base.en. See the
+// TAD §7 "Voice tuning" section for full trade-off notes.
+const MODELS = {
+  'whisper-base':  { id: 'Xenova/whisper-base.en',      family: 'whisper' },
+  'whisper-small': { id: 'Xenova/whisper-small.en',     family: 'whisper' },
+  'whisper-tiny':  { id: 'Xenova/whisper-tiny.en',      family: 'whisper' },
+  'moonshine':     { id: 'onnx-community/moonshine-base-ONNX', family: 'moonshine' },
+};
+const DEFAULT_MODEL_KEY = 'whisper-base';
+
+function getActiveModel() {
+  try {
+    const key = localStorage.getItem('voidcount_asr_model');
+    if (key && MODELS[key]) return { key, ...MODELS[key] };
+  } catch (_) { /* noop */ }
+  return { key: DEFAULT_MODEL_KEY, ...MODELS[DEFAULT_MODEL_KEY] };
+}
 
 let pipelinePromise = null;
+let loadedKey = null;
 let modelReady = false;
 let loadProgress = 0;
 const progressListeners = new Set();
@@ -26,8 +44,12 @@ export function isModelReady() {
 }
 
 export function loadWhisper() {
-  if (pipelinePromise) return pipelinePromise;
-  pipelinePromise = pipeline('automatic-speech-recognition', MODEL, {
+  const active = getActiveModel();
+  if (pipelinePromise && loadedKey === active.key) return pipelinePromise;
+  modelReady = false;
+  loadProgress = 0;
+  loadedKey = active.key;
+  pipelinePromise = pipeline('automatic-speech-recognition', active.id, {
     progress_callback: (p) => {
       if (p.status === 'progress' && typeof p.progress === 'number') {
         notifyProgress(p.progress);
@@ -41,9 +63,57 @@ export function loadWhisper() {
     return asr;
   }).catch((err) => {
     pipelinePromise = null;
+    loadedKey = null;
     throw err;
   });
   return pipelinePromise;
+}
+
+function peakNormalize(float32, target = 0.95) {
+  let max = 0;
+  for (let i = 0; i < float32.length; i++) {
+    const a = Math.abs(float32[i]);
+    if (a > max) max = a;
+  }
+  if (max < 1e-6) return float32;
+  const scale = target / max;
+  const out = new Float32Array(float32.length);
+  for (let i = 0; i < float32.length; i++) out[i] = float32[i] * scale;
+  return out;
+}
+
+function trimSilence(float32, sampleRate, threshold = 0.012, paddingMs = 80) {
+  const windowSize = Math.max(1, Math.floor(sampleRate * 0.02));
+  const rmsAt = (i) => {
+    const end = Math.min(i + windowSize, float32.length);
+    let sum = 0;
+    for (let j = i; j < end; j++) sum += float32[j] * float32[j];
+    return Math.sqrt(sum / (end - i));
+  };
+
+  let start = 0;
+  for (let i = 0; i < float32.length; i += windowSize) {
+    if (rmsAt(i) > threshold) { start = i; break; }
+  }
+  let end = float32.length;
+  for (let i = float32.length - windowSize; i >= 0; i -= windowSize) {
+    if (rmsAt(i) > threshold) { end = Math.min(float32.length, i + windowSize); break; }
+  }
+  if (end <= start) return float32;
+
+  const pad = Math.floor(sampleRate * (paddingMs / 1000));
+  start = Math.max(0, start - pad);
+  end = Math.min(float32.length, end + pad);
+  return float32.slice(start, end);
+}
+
+function ensureMinimumLength(float32, sampleRate, minSeconds = 1.0) {
+  const target = Math.floor(sampleRate * minSeconds);
+  if (float32.length >= target) return float32;
+  const out = new Float32Array(target);
+  const offset = Math.floor((target - float32.length) / 2);
+  out.set(float32, offset);
+  return out;
 }
 
 async function blobToMono16kFloat32(blob) {
@@ -54,21 +124,26 @@ async function blobToMono16kFloat32(blob) {
   decodeCtx.close();
 
   const targetRate = 16000;
+  let mono;
   if (decoded.sampleRate === targetRate && decoded.numberOfChannels === 1) {
-    return decoded.getChannelData(0);
+    mono = decoded.getChannelData(0);
+  } else {
+    const offline = new OfflineAudioContext(
+      1,
+      Math.ceil(decoded.duration * targetRate),
+      targetRate
+    );
+    const src = offline.createBufferSource();
+    src.buffer = decoded;
+    src.connect(offline.destination);
+    src.start(0);
+    const rendered = await offline.startRendering();
+    mono = rendered.getChannelData(0);
   }
 
-  const offline = new OfflineAudioContext(
-    1,
-    Math.ceil(decoded.duration * targetRate),
-    targetRate
-  );
-  const src = offline.createBufferSource();
-  src.buffer = decoded;
-  src.connect(offline.destination);
-  src.start(0);
-  const rendered = await offline.startRendering();
-  return rendered.getChannelData(0);
+  const trimmed = trimSilence(mono, targetRate);
+  const normalized = peakNormalize(trimmed);
+  return ensureMinimumLength(normalized, targetRate, 1.0);
 }
 
 export async function transcribe(blob) {
@@ -82,3 +157,9 @@ export async function transcribe(blob) {
   });
   return (result?.text || '').trim();
 }
+
+export function getActiveModelKey() {
+  return getActiveModel().key;
+}
+
+export const AVAILABLE_MODELS = Object.keys(MODELS);
