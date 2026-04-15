@@ -14,8 +14,9 @@ import {
   getLeaderboard,
   saveToLeaderboard,
 } from '../gameLogic.js';
+import { setStorage } from '../storage.js';
 
-// Mock localStorage for leaderboard tests
+// Inject an in-memory storage for leaderboard tests
 const localStorageMock = (() => {
   let store = {};
   return {
@@ -25,7 +26,7 @@ const localStorageMock = (() => {
     clear: () => { store = {}; },
   };
 })();
-Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock });
+setStorage(localStorageMock);
 
 // ─── Difficulty Config ───
 

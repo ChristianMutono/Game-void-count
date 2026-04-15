@@ -1,7 +1,7 @@
 # Void Count — Mobile Technical Architecture (TAD)
 
 **Developer:** Christian Mutono (Mr Raw)
-**Status:** Planned — bootstrapped as `apps/mobile/` in the monorepo.
+**Status:** Playable — full game loop, voice input (both modes), leaderboard, and settings shipped. Visual polish (CRT overlay, glitch engine, themes, menu wheel physics) and audio (SFX, music) deferred.
 
 > This document covers the iOS and Android editions. The game rules, difficulty matrix, taunt matrices, and leaderboard contract are shared with the web edition and live in the general [`../02_Product_Requirements_PRD.md`](../02_Product_Requirements_PRD.md). Only mobile-specific architecture is captured here.
 
@@ -18,7 +18,7 @@
 | Animation | `react-native-reanimated` | Glitch + CRT + wheel effects |
 | Audio (SFX + music) | `expo-av` | Procedurally-generated SFX + music track playback |
 | Voice recognition | `@react-native-voice/voice` *(or `expo-speech-recognition`)* | Native on-device ASR, wrapping `SFSpeechRecognizer` / Android `SpeechRecognizer` |
-| Persistence | `react-native-mmkv` | Fast encrypted key-value store replacing `localStorage` |
+| Persistence | `@react-native-async-storage/async-storage` | Synchronous-cache-wrapped async storage installed as `@void-count/core` backend via `setStorage()` |
 | Haptics | `expo-haptics` | Tactile feedback on submit/error |
 | Shared logic | `@void-count/core` (workspace) | Game rules, taunts, player name, parser |
 
@@ -52,16 +52,15 @@ Continuous mode grants a 1.5 s timer grace **only when the mic is first tapped o
 
 ## 3. Persistence
 
-| Web key (`localStorage`) | Mobile key (`MMKV`) | Purpose |
-|---|---|---|
-| `voidcount_player_name` | `player.name` | Player display name |
-| `voidcount_leaderboard` | `leaderboard.json` | Top 10 per difficulty (JSON blob) |
-| `voidcount_theme` | `theme.id` | Active theme |
-| `voidcount_debug` | `debug.on` | Debug Mode flag |
-| `voidcount_sfx_volume` | `audio.sfx` | SFX volume 0–1 |
-| `voidcount_music_volume` | `audio.music` | Music volume 0–1 |
-| `voidcount_voice_input` | `voice.enabled` | Voice toggle |
-| — | `voice.mode` | `'push-to-talk'` / `'continuous'` |
+Mobile uses the **same localStorage key names** as web. `apps/mobile/src/lib/storage.js` hydrates every key from `AsyncStorage` into a synchronous in-memory cache at app boot, then installs a shim into `@void-count/core`'s `setStorage()` that reads from the cache synchronously and writes through to `AsyncStorage` asynchronously. Result: `@void-count/core` stays fully synchronous and platform-agnostic, mobile gets durable persistence for free.
+
+| Key | Purpose |
+|---|---|
+| `voidcount_player_name` | Player display name |
+| `voidcount_leaderboard` | Top 10 per difficulty (JSON) |
+| `voidcount_debug` | Debug Mode flag |
+| `voidcount_voice_input` | Voice toggle |
+| `voidcount_voice_mode` | `'push-to-talk'` / `'continuous'` |
 
 ## 4. What's shared from `@void-count/core`
 

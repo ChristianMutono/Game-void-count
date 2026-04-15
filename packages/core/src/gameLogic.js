@@ -161,8 +161,10 @@ export function getElapsedTime(state) {
   return Math.max(0, wallSeconds - cpuAdjustment - micGraceAdjustment);
 }
 
+import { getItem, setItem } from './storage.js';
+
 export function getLeaderboard() {
-  const raw = localStorage.getItem('voidcount_leaderboard');
+  const raw = getItem('voidcount_leaderboard');
   return raw ? JSON.parse(raw) : [];
 }
 
@@ -180,6 +182,6 @@ export function saveToLeaderboard(entry) {
     counts[d] = (counts[d] || 0) + 1;
     return counts[d] <= 10;
   });
-  localStorage.setItem('voidcount_leaderboard', JSON.stringify(trimmed));
+  setItem('voidcount_leaderboard', JSON.stringify(trimmed));
   return trimmed;
 }
