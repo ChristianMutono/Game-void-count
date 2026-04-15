@@ -10,9 +10,6 @@ export function isDebugMode() {
 
 export default function SettingsModal({ onClose, currentTheme, onThemeChange }) {
   const [name, setName] = useState(getPlayerName());
-  const [micDefault, setMicDefaultState] = useState(
-    localStorage.getItem('voidcount_mic_default') === 'unmuted' ? false : true
-  );
   const [debugMode, setDebugModeState] = useState(isDebugMode());
   const [cleared, setCleared] = useState(false);
   const [sfxVol, setSfxVol] = useState(getSfxVolume());
@@ -22,12 +19,6 @@ export default function SettingsModal({ onClose, currentTheme, onThemeChange }) 
     const val = e.target.value.slice(0, MAX_NAME_LEN);
     setName(val);
     setPlayerName(val);
-  };
-
-  const handleMicToggle = () => {
-    const next = !micDefault;
-    setMicDefaultState(next);
-    localStorage.setItem('voidcount_mic_default', next ? 'muted' : 'unmuted');
   };
 
   const handleClearRankings = () => {
@@ -98,26 +89,6 @@ export default function SettingsModal({ onClose, currentTheme, onThemeChange }) 
             />
             <span className="font-mono text-xs text-muted-foreground w-8 text-right">{Math.round(musicVol * 100)}%</span>
           </div>
-        </div>
-
-        {/* Mic Default */}
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="font-orbitron text-xs text-muted-foreground uppercase tracking-widest">Mic Default</div>
-            <div className="font-mono text-xs text-muted-foreground/60 mt-0.5">
-              {micDefault ? 'Starts muted' : 'Starts unmuted'}
-            </div>
-          </div>
-          <button
-            onClick={handleMicToggle}
-            className={`w-12 h-6 rounded-full transition-all relative ${
-              !micDefault ? 'bg-magenta/60' : 'bg-muted'
-            }`}
-          >
-            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${
-              !micDefault ? 'left-7' : 'left-1'
-            }`} />
-          </button>
         </div>
 
         {/* Theme */}

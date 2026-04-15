@@ -7,7 +7,7 @@
 
 ## 1. System Overview
 
-Void Count is a **fully client-side Single-Page Application** built with React 18 and Vite. There is no backend. All state is local (React hooks for session state, `localStorage` for persistence). Audio is procedurally synthesised via the Web Audio API; music uses HTML5 Audio elements. Voice input uses the browser-native Web Speech API.
+Void Count is a **fully client-side Single-Page Application** built with React 18 and Vite. There is no backend. All state is local (React hooks for session state, `localStorage` for persistence). Audio is procedurally synthesised via the Web Audio API; music uses HTML5 Audio elements. Voice input runs on-device using OpenAI Whisper (`Xenova/whisper-tiny.en`) via `@xenova/transformers` — the model is fetched lazily from the Hugging Face CDN on first use and cached in the browser.
 
 The app is deployed as static assets to Vercel, auto-deployed on every push to `master` via GitHub integration.
 
@@ -25,7 +25,7 @@ The app is deployed as static assets to Vercel, auto-deployed on every push to `
 │                                                              │
 │   [Web Audio API] — SFX synthesis, music context unlock      │
 │   [HTML5 Audio]   — background and difficulty music          │
-│   [Web Speech API] — voice input, number parsing             │
+│   [Whisper (transformers.js, WASM)] — on-device voice input  │
 │                                                              │
 └──────────────────────────────────────────────────────────────┘
         │
@@ -51,7 +51,7 @@ The app is deployed as static assets to Vercel, auto-deployed on every push to `
 | Animation | CSS + requestAnimationFrame | Physics loops, keyframes |
 | Audio Synthesis | Web Audio API | All game SFX |
 | Audio Playback | HTML5 Audio | Music tracks |
-| Voice | Web Speech API | Speech recognition |
+| Voice | `@xenova/transformers` (Whisper tiny.en, WASM) | On-device speech-to-text (push-to-talk, no backend) |
 | Icons | lucide-react | Iconography |
 
 ### Build & Tooling
@@ -96,7 +96,7 @@ void-count/
 │   │   ├── gameLogic.js               # Pure game rules & CPU AI
 │   │   ├── sounds.js                  # Web Audio SFX + volume/mute state
 │   │   ├── themes.js                  # 10 theme configs + apply()
-│   │   ├── taunts.js                  # 112-taunt matrix
+│   │   ├── taunts.js                  # 112 loss taunts + 28 victory taunts
 │   │   ├── playerName.js              # Name persistence
 │   │   ├── querry-client.js           # React Query client
 │   │   └── utils.js                   # Tailwind class helpers
@@ -161,7 +161,6 @@ All gameplay state lives inside React components. No external store (Redux, Zust
 | `voidcount_player_name` | Player display name |
 | `voidcount_leaderboard` | Top 10 scores **per difficulty** |
 | `voidcount_theme` | Active theme ID |
-| `voidcount_mic_default` | `'muted'` or `'unmuted'` |
 | `voidcount_debug` | `'on'` or `'off'` |
 | `voidcount_sfx_volume` | 0.0 – 1.0 |
 | `voidcount_music_volume` | 0.0 – 1.0 |
@@ -238,23 +237,55 @@ which regenerates the manifest from the filesystem.
 
 ## 7. Voice Input
 
-Voice uses the browser-native Web Speech API (`window.SpeechRecognition` / `webkitSpeechRecognition`). No third-party library — major alternatives (`react-speech-recognition`, `annyang`) wrap the same API.
+Voice input runs **entirely on-device** using OpenAI Whisper (`Xenova/whisper-tiny.en`, ~40MB ONNX) via the `@xenova/transformers` WASM runtime. No server-side inference; no network roundtrip beyond the initial model fetch from the Hugging Face CDN (cached in IndexedDB via `env.useBrowserCache = true`).
 
-Key settings:
+### Lifecycle
 
-- `continuous: true` — keeps recognition running across utterances
-- `interimResults: true` — fires on partial transcripts for snappier response
-- `maxAlternatives: 3` — tries multiple interpretations per utterance
-- `lang: 'en-US'`
+Implemented as **push-to-talk** in [src/components/game/NumberInput.jsx](src/components/game/NumberInput.jsx) backed by the service in [src/lib/whisper.js](src/lib/whisper.js):
 
-The `parseSpoken()` helper accepts any transcript and tries, in order:
+1. **Press mic** → `getUserMedia({ audio: true })` + `MediaRecorder` (preferring `audio/webm;codecs=opus`) begins capturing.
+2. An `AnalyserNode` on the same `MediaStream` drives the live volume meter.
+3. On first press, `loadWhisper()` lazily instantiates the `pipeline('automatic-speech-recognition', ...)` with a progress callback surfaced to the UI.
+4. **Release mic** → the recorder emits a `Blob`, which is decoded via `decodeAudioData`, resampled to mono 16 kHz through an `OfflineAudioContext`, and fed to the pipeline.
+5. The returned transcript is passed to `parseSpoken()` for digit extraction and submitted via `onSubmit(number)`.
 
-1. Direct integer parse
-2. Exact phrase match against `WORD_MAP`
-3. Any individual word matches in `WORD_MAP`
-4. Any compound phrase substring match
+### Grace-period integration
 
-Only `event.results[event.resultIndex]` onward is processed per event (the `.results` collection accumulates with `continuous: true`). Submissions are debounced: the same number cannot re-submit within 1.5s.
+When the user presses the mic, `NumberInput` fires an `onMicActivate` callback. [src/pages/Game.jsx](src/pages/Game.jsx) uses this to pause the timer for **1.5 seconds**, covering the recording hold, model inference, and transcript submission. The `TimerBar`'s `isRunning` prop is driven by `!micGrace` during that window.
+
+Grace is **single-shot per counter submission**: a `micGraceAvailableRef` starts `true`, flips to `false` the moment grace is granted, and only resets to `true` on a successful `applyCounterMove`. Repeated mic presses between submissions yield no further pauses.
+
+The grace window's actual elapsed duration is accumulated onto `gameState.micGraceTimeMs` when the 1.5s timeout fires, so it can be subtracted from the displayed/stored round time (see §9).
+
+### Score-based timer extensions
+
+In addition to the mic grace, the per-turn timer duration itself grows with the counter's progress:
+- Score **≥ 77** adds **+0.5s** to every subsequent turn's timer.
+- Score **≥ 100** adds another **+0.5s** (cumulative +1.0s past 100).
+
+The extension is computed from `gameState.highestCounterNumber` each render inside `Game.jsx` and passed as `duration` to the `<TimerBar>`, so the new value takes effect on the very next timer reset.
+
+### Elapsed-time accounting
+
+`getElapsedTime(state)` in [src/lib/gameLogic.js](src/lib/gameLogic.js) returns the **adjusted** round time used on the loss/win screen and in leaderboard writes:
+
+```
+elapsed = max(0, wall − 0.5 × controllerTimeMs/1000 − micGraceTimeMs/1000)
+```
+
+- `controllerTimeMs` is accumulated in `doCPUTurn` using the same random delay the CPU used to `setTimeout`. Counting only 50% of CPU time keeps difficulty tiers time-comparable without completely hiding the CPU's pacing.
+- `micGraceTimeMs` is accumulated when each 1.5s grace window completes. Full grace time is subtracted so voice players aren't penalised for using the intended feature.
+
+### Transcript parsing
+
+`parseSpoken()` normalises the Whisper transcript (punctuation stripped, hyphens collapsed) and tries, in order:
+
+1. Direct integer parse of the full string.
+2. Regex extraction of the first 1–3 digit number found.
+3. Word-based parse supporting `hundred` / tens + units compounds (e.g., `"one hundred and twelve"` → 112).
+4. Fallback to any individual unit/teen/tens word match.
+
+All candidates are clamped to 1–220 (above-`MAX_SCORE` buffer covers the highest pool max).
 
 ---
 
@@ -319,7 +350,7 @@ Tailwind classes reference these vars (`bg-background`, `text-cyan`, etc.), so a
 ### Unit Tests — Vitest
 
 - **`src/__tests__/gameLogic.test.js`** — 40 tests covering difficulty config, state creation, `getNextRequiredCounter`, `validateCounterMove`, `applyCounterMove`, `generateCPUMove`, `applyCPUMove`, scoring, elapsed time, leaderboard (including **top-10-per-difficulty cap**), and full turn sequences
-- **`src/__tests__/taunts.test.js`** — 3 tests ensuring every (failure type × score band) combination returns a valid taunt string
+- **`src/__tests__/taunts.test.js`** — 3 tests ensuring every (failure type × score band) combination returns a valid taunt string. Victory taunts (per-difficulty, score ≥ 200) are served from the same `getTaunt()` entry point
 
 ### Pre-commit Enforcement
 
@@ -373,10 +404,10 @@ Deployment is typically live within 30 seconds of a push.
 |---|---|---|
 | No backend | Keep friction minimal, free hosting | No global leaderboards or cloud saves |
 | localStorage only | Simple, privacy-friendly | Clearing browser data wipes progress |
-| Web Speech API | Zero bundle cost | Requires internet (Chrome sends audio to Google servers); inconsistent across browsers |
+| Whisper on-device (transformers.js) | Fully private, offline after first load, cross-browser, no server | ~40MB one-time model download on first mic use |
 | Procedural SFX | Tiny bundle, consistent feel | Can't use licensed/designed sound effects |
 | CRT overlay at `z-index: -1` | Avoids mobile touch-block bugs | Overlay appears behind UI, not above — subtle-feeling instead of in-your-face |
-| Separate volume meter stream | Real-time mic feedback | Runs getUserMedia twice; may conflict with SpeechRecognition in some browsers |
+| Single mic stream feeds recorder + analyser | One `getUserMedia` call, unified lifecycle | Analyser closed with stream at end of each push-to-talk cycle |
 
 ---
 

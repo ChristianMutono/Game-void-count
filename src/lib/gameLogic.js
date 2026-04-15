@@ -31,6 +31,8 @@ export function createGameState(mode, difficulty) {
     failureType: null,
     lastSubmitted: null,
     counterWon: false,
+    controllerTimeMs: 0,
+    micGraceTimeMs: 0,
   };
 }
 
@@ -72,7 +74,10 @@ export function applyCounterMove(state, number) {
 
   newState.counterNumbers.add(number);
   newState.allNumbers.add(number);
-  newState.highestCounterNumber = Math.max(newState.highestCounterNumber || 0, number);
+  newState.highestCounterNumber = Math.min(
+    Math.max(newState.highestCounterNumber || 0, number),
+    MAX_SCORE
+  );
   newState.lastSubmitted = number;
   newState.currentTurn = 'controller';
 
@@ -142,7 +147,10 @@ export function getScore(state) {
 export function getElapsedTime(state) {
   if (!state.startTime) return 0;
   const end = state.endTime || Date.now();
-  return (end - state.startTime) / 1000;
+  const wallSeconds = (end - state.startTime) / 1000;
+  const cpuAdjustment = 0.5 * ((state.controllerTimeMs || 0) / 1000);
+  const micGraceAdjustment = (state.micGraceTimeMs || 0) / 1000;
+  return Math.max(0, wallSeconds - cpuAdjustment - micGraceAdjustment);
 }
 
 export function getLeaderboard() {

@@ -34,6 +34,26 @@ const FAQS = [
     q: "Why does the Controller sometimes answer instantly and sometimes take ages?",
     a: "When the Controller is slow, it's planning. When it's fast, it already planned. Neither is good news for you. Treat both with suspicion. The Controller is not your friend."
   },
+  {
+    q: "How does voice input work? Can I just shout numbers at my screen?",
+    a: "Yes, screaming is optional but supported. Hold the mic button, say the number, let go. The game transcribes it on your own device — no cloud, no Google, no microphone-adjacent marketing algorithm listening to your breakfast. Release the button and the number gets submitted. If nothing happens, you probably mumbled. The void doesn't do mumbles."
+  },
+  {
+    q: "Why is there a little 'LOADING' bar the first time I try voice input?",
+    a: "Because you're downloading an actual neural network to your browser. About 40MB of open-source speech recognition (Whisper) arrives quietly in the background the moment you open the page, and it's cached forever after. First visit: slight wait. Every visit after: instant. The void rewards patience. Occasionally."
+  },
+  {
+    q: "The timer stops when I hold the mic. Is that a bug?",
+    a: "No. That's mercy, and mercy is rare here. Holding the mic pauses the timer and gives you a 1.5-second grace window once you let go, so transcription doesn't cost you the round. Don't abuse it — the void is watching and the void has a very low tolerance for stalling."
+  },
+  {
+    q: "Can I just say 'one hundred and twelve' or do I have to say '112' like a robot?",
+    a: "Talk however you talk. 'One twelve', 'one hundred twelve', 'one hundred and twelve', or just '112' all resolve to the same number. The parser handles tens + units compounds ('twenty-seven', 'forty-three') and the whole 'hundred' family. What it won't handle is you trying to be clever with 'roughly a hundredish'. Just say the number."
+  },
+  {
+    q: "Does my voice get sent anywhere?",
+    a: "No. Audio never leaves your device. The transcription model runs locally in your browser — the only thing that ever hits the network is the one-time model download itself. After that, you could unplug your internet and voice input would still work. Which is the most paranoid-friendly feature this game will ever have."
+  },
 ];
 
 export default function FAQ({ onClose }) {

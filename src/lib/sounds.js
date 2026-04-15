@@ -89,9 +89,6 @@ export const sounds = {
 export function getAudioContext() { return getCtx(); }
 export function setMuted(v) { _muted = v; }
 export function isMuted() { return _muted; }
-export function getMicDefault() {
-  return localStorage.getItem('voidcount_mic_default') !== 'unmuted';
-}
 
 export function getSfxVolume() { return _sfxVolume; }
 export function setSfxVolume(v) {

@@ -59,18 +59,21 @@ This document defines the functional and non-functional requirements for Void Co
 
 - **FR-D-1** The pool of available numbers SHALL extend from 1 to `MAX_SCORE + jump_limit`
 - **FR-D-2** CPU jump amounts SHALL follow a `pow(random, 0.585)` distribution — ~33% low-jump, ~67% mid-to-high-jump
-- **FR-D-3** The timer SHALL receive a +0.5s buffer when the microphone is active to account for speech processing latency
+- **FR-D-3** The timer SHALL pause while the microphone is held for voice input, and SHALL remain paused for a **1.5-second grace period** from the moment the mic is activated before resuming, to cover model inference and transcript submission latency
+  - The mic grace SHALL be granted **at most once per counter submission** — i.e., the grace credit refreshes only after a valid counter move is accepted. Pressing the mic a second time before submitting a number grants no additional grace
+- **FR-D-4** The per-turn timer duration SHALL increase by **+0.5 seconds** once the counter's highest submitted number reaches **77**, and by an additional **+0.5 seconds** once it reaches **100** (cumulative +1.0s beyond the base difficulty timer from score 100 onwards)
 
 ### 3.4 Input Methods
 
 - **FR-I-1** The game SHALL support three concurrent input methods: keyboard, touch, voice
 - **FR-I-2** Keyboard — digits append to input, Backspace clears last, Enter submits
 - **FR-I-3** Touch — oversized hex-styled buttons for digits 0–9, plus CLR and Submit
-- **FR-I-4** Voice — Web Speech API with continuous recognition and interim results
-  - SHALL parse spoken numbers 0–200, including compound words ("twenty-one", "thirty-five", etc.)
-  - SHALL display a live volume meter when the microphone is active
-  - SHALL debounce duplicate submissions within 1.5s
-- **FR-I-5** The microphone default state (muted/unmuted) SHALL be configurable in Settings
+- **FR-I-4** Voice — **on-device push-to-talk** using OpenAI Whisper (`Xenova/whisper-tiny.en`) via `@xenova/transformers` running entirely in-browser (WASM + ONNX)
+  - The mic button SHALL be **hold-to-speak**: press starts recording via `MediaRecorder`, release stops recording and triggers transcription
+  - SHALL parse spoken numbers 1–200, including compound words ("twenty-one", "one hundred and twelve", etc.)
+  - SHALL display a live volume meter while the mic is held and a status indicator during model load, recording, and transcription
+  - The Whisper model SHALL be lazily fetched from the Hugging Face CDN on first use and cached in the browser for subsequent sessions
+  - No server-side inference is required; all speech processing SHALL run locally in the user's browser
 
 ### 3.5 Visual Design
 
@@ -101,20 +104,24 @@ This document defines the functional and non-functional requirements for Void Co
 
 - **FR-L-1** Upon loss, a full-screen overlay SHALL display the failure type, final score, elapsed time, and difficulty
 - **FR-L-2** A 2-second glitch animation SHALL play on entry
-- **FR-L-3** A contextual taunt SHALL be selected from a matrix of **4 failure types × 4 score bands × 7 variants = 112 taunts**
+- **FR-L-3** A contextual taunt SHALL be selected from a matrix of **4 failure types × 4 score bands × 7 variants = 112 loss taunts**
   - Band 1 (1–30): hostile mockery
   - Band 2 (31–60): backhanded compliments
   - Band 3 (61–100): dismissive acknowledgement
   - Band 4 (100+): sarcastic awe
 - **FR-L-4** The player SHALL be able to: Retry, view Rankings, or Exit
 - **FR-L-5** Player name SHALL be editable on the loss screen (max 10 characters) and saved with the leaderboard entry
+- **FR-L-6** The counter's score SHALL be capped at **MAX_SCORE (200)**; any submission that would carry `highestCounterNumber` above 200 is clamped to 200 for scoring and leaderboard purposes
+- **FR-L-7** Upon reaching MAX_SCORE, a **victory taunt** SHALL be selected instead of a loss taunt, from a matrix of **4 difficulties × 7 variants = 28 victory taunts**
+  - `easy`, `normal`, `hard`: mocking congratulations that pressure the player onto the next difficulty tier
+  - `extreme`: begrudging, speechless acknowledgement that the player has beaten the void itself
 
 ### 3.8 Leaderboard
 
 - **FR-LB-1** Scores SHALL be saved to `localStorage` upon game over
 - **FR-LB-2** The leaderboard SHALL be capped at **10 entries per difficulty** (not 10 total)
 - **FR-LB-3** Primary sort: highest score descending
-- **FR-LB-4** Tiebreaker: elapsed time ascending (faster wins)
+- **FR-LB-4** Tiebreaker: elapsed time ascending (faster wins). The stored/displayed elapsed time SHALL be the adjusted total: `wall_clock − 0.5 × total_controller_think_time − total_mic_grace_time`, clamped at 0. This neutralises difficulty-skewed CPU pacing and rewards fair use of the voice grace without punishing it
 - **FR-LB-5** The Rankings modal SHALL provide difficulty tabs showing the top 10 per tab
 - **FR-LB-6** Settings SHALL offer a "Clear Rankings" action with confirmation feedback
 - **FR-LB-7** The in-game HUD SHALL display the current top score for the active difficulty
@@ -122,12 +129,13 @@ This document defines the functional and non-functional requirements for Void Co
 ### 3.9 Settings
 
 - **FR-S-1** Player Name — editable, max 10 characters, persisted
-- **FR-S-2** Mic Default — toggle for muted/unmuted on game start, persisted
-- **FR-S-3** SFX Volume slider (0–100%), persisted
-- **FR-S-4** Music Volume slider (0–100%), persisted
-- **FR-S-5** Theme grid — 10 themes, persisted
-- **FR-S-6** Debug Mode toggle — shows next-required number and both player histories during play
-- **FR-S-7** Clear Rankings button with 2-second "cleared" confirmation
+- **FR-S-2** SFX Volume slider (0–100%), persisted
+- **FR-S-3** Music Volume slider (0–100%), persisted
+- **FR-S-4** Theme grid — 10 themes, persisted
+- **FR-S-5** Debug Mode toggle — shows next-required number and both player histories during play
+- **FR-S-6** Clear Rankings button with 2-second "cleared" confirmation
+
+> Note: the voice input is push-to-talk on demand; no "mic default" setting is required. The mic is never listening unless the user is actively holding the mic button.
 
 ---
 
@@ -155,7 +163,7 @@ This document defines the functional and non-functional requirements for Void Co
 ### 4.4 Privacy
 
 - **NFR-PR-1** No data SHALL leave the device — all state is local
-- **NFR-PR-2** The voice-recognition API (Web Speech) SHALL only transmit audio to the user's browser vendor when the user explicitly enables the mic
+- **NFR-PR-2** Audio recorded during push-to-talk SHALL be processed entirely in-browser via on-device Whisper inference; no audio SHALL be transmitted to any server. The only network request related to voice is the one-time Whisper model fetch from the Hugging Face CDN, which contains no user audio
 
 ### 4.5 Quality
 

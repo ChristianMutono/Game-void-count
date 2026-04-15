@@ -9,7 +9,7 @@ import {
   DIFFICULTIES,
   getNextRequiredCounter,
 } from '../lib/gameLogic';
-import { sounds, getMicDefault, getMusicVolume, isMuted } from '../lib/sounds';
+import { sounds, getMusicVolume, isMuted } from '../lib/sounds';
 import CRTOverlay from '../components/game/CRTOverlay';
 import TimerBar from '../components/game/TimerBar';
 import NumberInput from '../components/game/NumberInput';
@@ -34,13 +34,16 @@ export default function Game() {
   const [timerPct, setTimerPct] = useState(1);
   const [inputShakeKey, setInputShakeKey] = useState(0);
   const [debugMode] = useState(() => isDebugMode());
-  const [micOn, setMicOn] = useState(!getMicDefault());
   const [musicMuted, setMusicMuted] = useState(false);
+  const [micGrace, setMicGrace] = useState(false);
 
   const gameStateRef = useRef(gameState);
   gameStateRef.current = gameState;
   const cpuPreppedRef = useRef(false);
   const bgMusicRef = useRef(null);
+  const micGraceTimeoutRef = useRef(null);
+  const micGraceStartRef = useRef(0);
+  const micGraceAvailableRef = useRef(true);
 
   // Background music at 70% of set volume, fades in gently
   useEffect(() => {
@@ -100,6 +103,7 @@ export default function Game() {
     setTimeout(() => {
       const cpuNum = generateCPUMove(state, difficulty);
       const newState = applyCPUMove(state, cpuNum);
+      newState.controllerTimeMs = (state.controllerTimeMs || 0) + delay;
       setGameState(newState);
       setCpuThinking(false);
       flashScreen('magenta');
@@ -108,8 +112,29 @@ export default function Game() {
     }, delay);
   }, [mode, difficulty]);
 
-  // Effective timer duration: add 0.5s if mic is active for speech processing
-  const effectiveTimerDuration = micOn ? diff.timer + 0.5 : diff.timer;
+  const scoreSoFar = gameState.highestCounterNumber || 0;
+  const effectiveTimerDuration =
+    diff.timer +
+    (scoreSoFar >= 77 ? 0.5 : 0) +
+    (scoreSoFar >= 100 ? 0.5 : 0);
+
+  const handleMicActivate = useCallback(() => {
+    if (!micGraceAvailableRef.current) return;
+    if (micGraceTimeoutRef.current) return;
+    micGraceAvailableRef.current = false;
+    micGraceStartRef.current = Date.now();
+    setMicGrace(true);
+    micGraceTimeoutRef.current = setTimeout(() => {
+      const elapsed = Date.now() - micGraceStartRef.current;
+      setMicGrace(false);
+      micGraceTimeoutRef.current = null;
+      setGameState((s) => ({ ...s, micGraceTimeMs: (s.micGraceTimeMs || 0) + elapsed }));
+    }, 1500);
+  }, []);
+
+  useEffect(() => () => {
+    if (micGraceTimeoutRef.current) clearTimeout(micGraceTimeoutRef.current);
+  }, []);
 
   const handleCounterSubmit = useCallback((number) => {
     const state = gameStateRef.current;
@@ -127,6 +152,7 @@ export default function Game() {
     const newState = applyCounterMove(state, number);
     setGameState(newState);
     flashScreen('cyan');
+    micGraceAvailableRef.current = true;
 
     if (isFirstMove) sounds.gameStart();
     else sounds.submit();
@@ -172,9 +198,15 @@ export default function Game() {
     setGameState(createGameState(mode, difficulty));
     setTimerKey(k => k + 1);
     setTimerPct(1);
+    micGraceAvailableRef.current = true;
+    if (micGraceTimeoutRef.current) {
+      clearTimeout(micGraceTimeoutRef.current);
+      micGraceTimeoutRef.current = null;
+    }
+    setMicGrace(false);
   };
 
-  const timerRunning = gameState.isStarted && !gameState.gameOver && !cpuThinking &&
+  const timerRunning = gameState.isStarted && !gameState.gameOver && !cpuThinking && !micGrace &&
     (gameState.currentTurn === 'counter' || mode === 'local');
 
   const isInputDisabled = gameState.gameOver || cpuThinking ||
@@ -271,6 +303,7 @@ export default function Game() {
             onSubmit={handleSubmit}
             disabled={isInputDisabled}
             shakeKey={inputShakeKey}
+            onMicActivate={handleMicActivate}
           />
         </div>
       </div>

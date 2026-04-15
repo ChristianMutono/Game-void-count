@@ -27,7 +27,7 @@ A 2026 upgrade of the arcade classic — addictive, frustrating, and visually st
 - **Atmospheric:** CRT scanlines, chromatic aberration glitches, neon glow — the UI feels alive and slightly unstable
 - **Tactile:** physics-based carousel menus with mechanical click sounds and inertial snap-to-center
 - **Hostile but fair:** the Controller (AI or human) plays within clear rules, but uses psychological warfare — close numbers, far jumps, unpredictable timing
-- **Punishing with personality:** 112 unique taunt messages categorised by failure type and performance band deliver scaled hostility
+- **Punishing with personality:** 112 loss taunts (failure type × performance band) deliver scaled hostility, plus 28 difficulty-specific victory taunts that mock anyone who caps the score at 200
 
 ---
 
@@ -51,7 +51,7 @@ A 2026 upgrade of the arcade classic — addictive, frustrating, and visually st
 ## 5. Key Differentiators
 
 - **Voice, touch, and keyboard** all work concurrently — playable hands-free
-- **112 contextual taunts** split across 4 failure types × 4 performance bands
+- **112 contextual loss taunts** (4 failure types × 4 performance bands × 7 variants) + **28 victory taunts** (4 difficulties × 7 variants) for players who max out at 200
 - **Fully procedural SFX** via Web Audio API — no audio assets for game sounds
 - **10 re-skinnable visual themes** that recolour the entire UI
 - **Panic feedback:** the controller's last number vibrates and glows more intensely as the timer drains

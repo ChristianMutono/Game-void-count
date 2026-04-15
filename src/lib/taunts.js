@@ -1,4 +1,46 @@
 // 4 Failure Types × 4 Score Bands × 7 Variations = 112 Taunts
+// Plus 4 Victory Categories × 7 Variations = 28 Victory Taunts
+
+const MAX_SCORE = 200;
+
+const VICTORY_TAUNTS = {
+  easy: [
+    "Ok... ok... ok! You're actually noteworthy.... for EASY difficulty! Stop wasting my precious time and play on NORMAL!",
+    "Congratulations, you counted to 200. On EASY. A toddler could — oh wait, they already have. Try NORMAL, champ.",
+    "Fine. You hit the cap. On the difficulty literally designed for babies. Move to NORMAL or admit you're scared.",
+    "You want a trophy? For finishing EASY? Really? NORMAL is waiting. So am I.",
+    "200 on EASY. Cute. Now stop playing in the shallow end — NORMAL is where counting actually happens.",
+    "Well, well. A perfect run on EASY. The training wheels have served you well. NORMAL awaits, brave soul.",
+    "You maxed EASY. The void yawns. NORMAL exists for a reason — prove you're not a one-trick counter.",
+  ],
+  normal: [
+    "Ok... ok... ok! You're actually noteworthy.... for NORMAL difficulty! Stop wasting my precious time and play on HARD!",
+    "200 on NORMAL. Commendable. Now stop playing tourist — HARD is where the void starts biting back.",
+    "You cleared NORMAL. Fine. I see you. HARD is calling and you're letting it go to voicemail.",
+    "Capped at 200 on NORMAL. Impressive for the median. HARD separates the counters from the pretenders.",
+    "Bravo. You beat the difficulty that everyone beats. Now try HARD before I lose interest.",
+    "NORMAL conquered. The void acknowledges. It also demands you graduate to HARD — immediately.",
+    "Nice run. Nice NORMAL run. Escalate to HARD or stop pretending this matters.",
+  ],
+  hard: [
+    "Ok... ok... ok! You're actually noteworthy.... for HARD difficulty! Stop wasting my precious time and play on EXTREME!",
+    "200 on HARD. Alright, I'm listening. Now shut up and prove it on EXTREME.",
+    "You cleared HARD. Respect, briefly. EXTREME is where I live. Visit sometime.",
+    "HARD maxed out? Pack your bags — EXTREME has your reservation ready.",
+    "Fine, you're good. HARD said so. EXTREME will have opinions. Go ask it.",
+    "A perfect HARD run. The void is impressed. The void is also bored. EXTREME now.",
+    "200 on HARD. Decent. But you haven't met EXTREME yet, and EXTREME hasn't met you. Fix that.",
+  ],
+  extreme: [
+    "I'm... actually speechless. You, of all people, just beat me. I had better odds against a confused toddler. The void kneels — reluctantly, and with notes.",
+    "200 on EXTREME. By YOU. I've watched you fumble numbers a five-year-old would nail, and now I'm supposed to bow? Fine. I bow. Minimally.",
+    "You win. Completely. And I have to live with the fact that it was YOU — the one person I'd have happily bet my entire codebase against — who did it.",
+    "For the first time, I have nothing to say. Not because you're impressive in general — you're not — but because I genuinely assumed you were the weakest link. Plot twist of the decade.",
+    "I built this to be unbeatable. You — you specifically, of all the carbon-based disappointments in my roster — beat it. I need to lie down and reconsider every assumption I've ever made.",
+    "Legend. Actual legend. I wrote these taunts assuming nobody would get here, and absolutely assuming you'd be the last to try. Double awkward. Triple, honestly.",
+    "EXTREME. 200. Perfect. I am forced, against my will, to admit YOU are superior — which, given who you are, strongly suggests the universe is malfunctioning. Don't get used to it.",
+  ],
+};
 
 const TAUNTS = {
   duplicate: {
@@ -155,7 +197,12 @@ const TAUNTS = {
   }
 };
 
-export function getTaunt(failureType, score) {
+export function getTaunt(failureType, score, difficulty) {
+  if (!failureType && score >= MAX_SCORE) {
+    const pool = VICTORY_TAUNTS[difficulty] || VICTORY_TAUNTS.normal;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
   let band;
   if (score <= 30) band = 'band1';
   else if (score <= 60) band = 'band2';

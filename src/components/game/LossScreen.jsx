@@ -8,7 +8,7 @@ import { RotateCcw, Home, Trophy } from 'lucide-react';
 export default function LossScreen({ gameState, onRestart, onHome, onShowLeaderboard }) {
   const [visible, setVisible] = useState(false);
   const [glitching, setGlitching] = useState(true);
-  const [taunt] = useState(() => getTaunt(gameState.failureType, getScore(gameState)));
+  const [taunt] = useState(() => getTaunt(gameState.failureType, getScore(gameState), gameState.difficulty));
   const [playerName, setPlayerNameState] = useState(getPlayerName());
 
   const score = getScore(gameState);
@@ -25,9 +25,11 @@ export default function LossScreen({ gameState, onRestart, onHome, onShowLeaderb
     setPlayerNameState(val);
   };
 
+  const MR_RAW_NAMES = ['Mr Raw', 'Mr. Raw'];
+
   const handleExit = (callback) => {
     const saved = setPlayerName(playerName);
-    if (!isDebugMode() || saved === 'Mr Raw') {
+    if (!isDebugMode() || MR_RAW_NAMES.includes(saved)) {
       saveToLeaderboard({
         score,
         playerName: saved,
