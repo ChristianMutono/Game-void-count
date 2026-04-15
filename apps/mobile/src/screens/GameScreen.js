@@ -12,6 +12,7 @@ import TimerBar from '../components/TimerBar';
 import NumberInput from '../components/NumberInput';
 import LossScreen from '../components/LossScreen';
 import Leaderboard from '../components/Leaderboard';
+import CRTOverlay from '../components/CRTOverlay';
 import { isDebugMode } from '../lib/settings';
 import { stopVoice } from '../lib/voice';
 import { COLORS, FONTS } from '../theme';
@@ -175,6 +176,7 @@ export default function GameScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <CRTOverlay />
       <View style={styles.top}>
         <Pressable onPress={() => { stopVoice(); navigation.goBack(); }} hitSlop={8}>
           <Text style={styles.topExit}>← EXIT</Text>

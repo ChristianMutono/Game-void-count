@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { getNextRequiredCounter, getScore, getLeaderboard } from '@void-count/core';
+import GlitchText from './GlitchText';
 import { COLORS, FONTS } from '../theme';
 
 export default function GameHUD({ gameState, timerPct, mode, debugMode, difficulty }) {
@@ -22,12 +23,57 @@ export default function GameHUD({ gameState, timerPct, mode, debugMode, difficul
     ? 1 - 0.75 * Math.max(0, Math.min(1, (score - 25) / 75))
     : 1;
 
+  const topGlitchOn = isHardOrExtreme && score > 50 && !gameState.gameOver;
+  const scoreGlitchOn = difficulty === 'extreme' && score > 50 && !gameState.gameOver;
+  const [topBurst, setTopBurst] = useState(false);
+  const [scoreBurst, setScoreBurst] = useState(false);
+
+  useEffect(() => {
+    if (!topGlitchOn) { setTopBurst(false); return; }
+    let active = true, t1, t2;
+    const tick = () => {
+      if (!active) return;
+      const delay = Math.random() * 49000;
+      t1 = setTimeout(() => {
+        if (!active) return;
+        setTopBurst(true);
+        t2 = setTimeout(() => { if (!active) return; setTopBurst(false); tick(); }, 700);
+      }, delay);
+    };
+    tick();
+    return () => { active = false; clearTimeout(t1); clearTimeout(t2); };
+  }, [topGlitchOn]);
+
+  useEffect(() => {
+    if (!scoreGlitchOn) { setScoreBurst(false); return; }
+    let active = true, t1, t2;
+    const tick = () => {
+      if (!active) return;
+      const delay = Math.random() * 60000;
+      t1 = setTimeout(() => {
+        if (!active) return;
+        setScoreBurst(true);
+        t2 = setTimeout(() => { if (!active) return; setScoreBurst(false); tick(); }, 700);
+      }, delay);
+    };
+    tick();
+    return () => { active = false; clearTimeout(t1); clearTimeout(t2); };
+  }, [scoreGlitchOn]);
+
   return (
     <View style={styles.wrap}>
       <View style={styles.row}>
         <View style={[styles.box, { opacity: scoreBoxOpacity }]}>
           <Text style={styles.label}>SCORE</Text>
-          <Text style={[styles.number, { color: COLORS.cyan }]}>{score}</Text>
+          <GlitchText
+            style={[styles.number, { color: COLORS.cyan }]}
+            color={COLORS.cyan}
+            offsetColor1={COLORS.magenta}
+            offsetColor2={COLORS.cyan}
+            burst={scoreBurst}
+          >
+            {String(score)}
+          </GlitchText>
         </View>
 
         <View style={[styles.box, styles.boxMid, { borderColor: isCounterTurn ? COLORS.cyanDim : COLORS.magentaDim }]}>
@@ -45,7 +91,15 @@ export default function GameHUD({ gameState, timerPct, mode, debugMode, difficul
         ) : (
           <View style={[styles.box, styles.boxRight, { opacity: scoreBoxOpacity }]}>
             <Text style={styles.label}>TOP</Text>
-            <Text style={[styles.number, { color: COLORS.yellow }]}>{topScore}</Text>
+            <GlitchText
+              style={[styles.number, { color: COLORS.yellow }]}
+              color={COLORS.yellow}
+              offsetColor1={COLORS.magenta}
+              offsetColor2={COLORS.cyan}
+              burst={topBurst}
+            >
+              {String(topScore)}
+            </GlitchText>
           </View>
         )}
       </View>

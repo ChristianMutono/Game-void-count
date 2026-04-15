@@ -6,6 +6,7 @@ import {
   getVoiceMode, setVoiceMode,
   isDebugMode, setDebugMode,
 } from '../lib/settings';
+import { THEMES, getActiveThemeId, applyTheme } from '../themes';
 import { COLORS, FONTS } from '../theme';
 
 export default function Settings({ visible, onClose }) {
@@ -14,6 +15,7 @@ export default function Settings({ visible, onClose }) {
   const [mode, setMode] = useState(getVoiceMode());
   const [debug, setDebug] = useState(isDebugMode());
   const [cleared, setCleared] = useState(false);
+  const [themeId, setThemeId] = useState(getActiveThemeId());
 
   const handleName = (t) => {
     const v = t.slice(0, MAX_NAME_LEN);
@@ -75,6 +77,22 @@ export default function Settings({ visible, onClose }) {
                 </Pressable>
               </Section>
             )}
+
+            <Section label="Theme">
+              <View style={themeStyles.grid}>
+                {THEMES.map(t => (
+                  <Pressable
+                    key={t.id}
+                    onPress={() => { applyTheme(t.id); setThemeId(t.id); }}
+                    style={[themeStyles.swatch, { backgroundColor: t.bg }, themeId === t.id && themeStyles.swatchActive]}
+                  >
+                    <View style={[themeStyles.dot, { backgroundColor: t.cyan }]} />
+                    <View style={[themeStyles.dot, { backgroundColor: t.magenta }]} />
+                    <View style={[themeStyles.dot, { backgroundColor: t.yellow }]} />
+                  </Pressable>
+                ))}
+              </View>
+            </Section>
 
             <Section label="Debug Mode">
               <Toggle on={debug} onToggle={toggleDebug} />
@@ -142,4 +160,15 @@ const togs = StyleSheet.create({
   trackOn: { backgroundColor: 'rgba(255,0,102,0.6)' },
   thumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff' },
   thumbOn: { transform: [{ translateX: 24 }] },
+});
+
+const themeStyles = StyleSheet.create({
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, flex: 1 },
+  swatch: {
+    width: 44, height: 30, borderRadius: 8,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center',
+  },
+  swatchActive: { borderColor: '#fff', borderWidth: 2 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
 });

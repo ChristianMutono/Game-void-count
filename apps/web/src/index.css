@@ -194,7 +194,7 @@
   background: rgba(0, 240, 255, 0.13);
   animation: scanline 8s linear infinite;
   pointer-events: none;
-  z-index: -1;
+  z-index: 9998;
 }
 
 .crt-flicker::before {
@@ -210,7 +210,7 @@
   );
   animation: flicker 4s infinite;
   pointer-events: none;
-  z-index: -1;
+  z-index: 9997;
 }
 
 .glitch-text {
