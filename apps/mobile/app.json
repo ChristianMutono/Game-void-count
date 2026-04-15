@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Void Count",
+    "slug": "void-count",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "voidcount",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#05060b"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mrraw.voidcount",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Void Count uses the microphone to let you speak numbers during a round.",
+        "NSSpeechRecognitionUsageDescription": "Void Count transcribes your spoken numbers on-device to submit them to the game."
+      }
+    },
+    "android": {
+      "package": "com.mrraw.voidcount",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#05060b"
+      },
+      "permissions": ["RECORD_AUDIO"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Void Count to use the microphone.",
+          "speechRecognitionPermission": "Allow Void Count to transcribe your speech."
+        }
+      ]
+    ]
+  }
+}

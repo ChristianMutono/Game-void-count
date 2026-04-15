@@ -1,0 +1,13 @@
+node_modules/
+.expo/
+dist/
+web-build/
+
+# Native
+ios/
+android/
+
+# Misc
+.DS_Store
+*.log
+*.tsbuildinfo
