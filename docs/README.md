@@ -8,6 +8,7 @@ Documents shared across the web, iOS, and Android editions. Game rules, mechanic
 
 - [`01_Project_Idea_Brief_PIB.md`](01_Project_Idea_Brief_PIB.md) — the concept, audience, and tone.
 - [`02_Product_Requirements_PRD.md`](02_Product_Requirements_PRD.md) — functional requirements, all cross-platform rules, and the difficulty matrices.
+- [`04_Monetization_Strategy.md`](04_Monetization_Strategy.md) — **Deferred to v2.0+.** Three candidate monetization routes (power-ups, ads + premium, voice packs), ranked by expected profit with pros/cons.
 
 ## Per-platform technical docs
 
